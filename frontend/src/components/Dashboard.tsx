@@ -207,19 +207,38 @@ export function Dashboard({
   }, [activeApp, isChromiumMinimized, isMaximized]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (isMaximized) {
-      return;
-    }
-
     if (event.button !== 0) {
       return;
     }
 
     event.preventDefault();
+
+    let nextPosition = windowPosition;
+    let offsetX = event.clientX - windowPosition.x;
+    let offsetY = event.clientY - windowPosition.y;
+
+    if (isMaximized) {
+      const restoredWidth = Math.min(window.innerWidth * 0.78, 980);
+      const pointerRatio = window.innerWidth > 0 ? event.clientX / window.innerWidth : 0.5;
+      const anchorX = Math.max(28, Math.min(restoredWidth - 28, restoredWidth * pointerRatio));
+
+      nextPosition = {
+        x: Math.max(-restoredWidth + 120, Math.min(event.clientX - anchorX, window.innerWidth - 120)),
+        y: Math.max(-28, Math.min(event.clientY - 16, window.innerHeight - 48)),
+      };
+
+      setIsMaximized(false);
+      setWindowPosition(nextPosition);
+      positionRef.current = nextPosition;
+
+      offsetX = event.clientX - nextPosition.x;
+      offsetY = event.clientY - nextPosition.y;
+    }
+
     dragStateRef.current = {
       pointerId: event.pointerId,
-      offsetX: event.clientX - windowPosition.x,
-      offsetY: event.clientY - windowPosition.y,
+      offsetX,
+      offsetY,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDragging(true);
@@ -227,6 +246,10 @@ export function Dashboard({
 
   const stopWindowControlPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
+  };
+
+  const handleTitleBarDoubleClick = () => {
+    toggleMaximize();
   };
 
   return (
@@ -375,6 +398,7 @@ export function Dashboard({
               <div
                 className="flex h-8 items-center justify-between border-b border-white/10 bg-black/45 px-3 select-none"
                 onPointerDown={startDragging}
+                onDoubleClick={handleTitleBarDoubleClick}
               >
                 <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
                   Chromium
@@ -382,7 +406,7 @@ export function Dashboard({
 
                 <div className="flex items-center gap-1.5">
                   <button
-                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-white/10 hover:text-ink"
+                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
                     onPointerDown={stopWindowControlPointer}
                     onClick={minimizeWindow}
                     type="button"
@@ -390,15 +414,24 @@ export function Dashboard({
                     -
                   </button>
                   <button
-                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-white/10 hover:text-ink"
+                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
                     onPointerDown={stopWindowControlPointer}
                     onClick={toggleMaximize}
                     type="button"
                   >
-                    {isMaximized ? "[]" : "[ ]"}
+                    {isMaximized ? (
+                      <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <rect height="11" rx="1.5" stroke="currentColor" strokeWidth="1.8" width="11" x="5" y="8" />
+                        <path d="M9 8V5h10v10h-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <rect height="14" rx="2" stroke="currentColor" strokeWidth="1.8" width="14" x="5" y="5" />
+                      </svg>
+                    )}
                   </button>
                   <button
-                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-red-500/20 hover:text-red-200"
+                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
                     onPointerDown={stopWindowControlPointer}
                     onClick={() => void closeWindow()}
                     type="button"
@@ -424,3 +457,5 @@ export function Dashboard({
     </main>
   );
 }
+
+
