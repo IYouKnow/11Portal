@@ -26,6 +26,29 @@ export type Overview = {
   };
 };
 
+export type TerminalSession = {
+  id: string;
+  type: "local" | "ssh";
+  ownerUserId: number;
+  title: string;
+  createdAt: string;
+  lastActiveAt: string;
+};
+
+export type SshConnectPayload = {
+  host: string;
+  port: number;
+  username: string;
+  authType: "password" | "private_key";
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+};
+
+export type CreateSessionRequest =
+  | { type: "local" }
+  | { type: "ssh"; ssh: SshConnectPayload };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -84,5 +107,22 @@ export async function openBrowserRuntime() {
 export async function closeBrowserRuntime() {
   return request<{ ok: boolean }>("/api/v1/browser/close", {
     method: "POST",
+  });
+}
+
+export async function createTerminalSession(payload: CreateSessionRequest) {
+  return request<{ item: TerminalSession }>("/api/v1/terminal/sessions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listTerminalSessions() {
+  return request<{ items: TerminalSession[] }>("/api/v1/terminal/sessions");
+}
+
+export async function closeTerminalSession(sessionId: string) {
+  return request<{ ok: boolean }>(`/api/v1/terminal/sessions/${sessionId}`, {
+    method: "DELETE",
   });
 }

@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/portal/backend/internal/http/handlers"
 	"github.com/portal/backend/internal/http/middleware"
 	"github.com/portal/backend/internal/store"
+	"github.com/portal/backend/internal/terminal"
 )
 
 func New(cfg config.Config, dataStore *store.Store) *fiber.App {
@@ -27,6 +29,9 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	browserRuntimeHandler := handlers.NewBrowserRuntimeHandler(cfg.ChromiumContainer)
 	systemHandler := handlers.NewSystemHandler(cfg, dataStore)
 	workspaceHandler := handlers.NewWorkspaceHandler(dataStore)
+	terminalManager := terminal.NewManager(time.Duration(cfg.TerminalIdleMinutes) * time.Minute)
+	_ = terminalManager.StartReaper(time.Minute)
+	terminalSessionHandler := handlers.NewTerminalSessionHandler(cfg, terminalManager)
 
 	api := app.Group("/api/v1")
 	api.Get("/health", systemHandler.Health)
@@ -39,6 +44,9 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	secured.Post("/browser/close", browserRuntimeHandler.Close)
 	secured.Get("/system/overview", systemHandler.Overview)
 	secured.Get("/workspaces", workspaceHandler.List)
+	secured.Post("/terminal/sessions", terminalSessionHandler.Create)
+	secured.Get("/terminal/sessions", terminalSessionHandler.List)
+	secured.Delete("/terminal/sessions/:id", terminalSessionHandler.Delete)
 
 	app.Use("/ws/terminal", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
@@ -49,9 +57,17 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	})
 
 	app.Get(
+		"/ws/terminal/:id",
+		middleware.RequireSession(cfg, dataStore),
+		websocket.New(terminalSessionHandler.Socket, websocket.Config{
+			Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
+		}),
+	)
+
+	app.Get(
 		"/ws/terminal",
 		middleware.RequireSession(cfg, dataStore),
-		websocket.New(handlers.TerminalSocket(cfg), websocket.Config{
+		websocket.New(handlers.TerminalSocket(cfg, terminalManager), websocket.Config{
 			Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
 		}),
 	)

@@ -14,7 +14,7 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates bash docker-cli
+RUN apk add --no-cache ca-certificates bash docker-cli openssh-client
 
 COPY --from=build /portal-api /usr/local/bin/portal-api
 
