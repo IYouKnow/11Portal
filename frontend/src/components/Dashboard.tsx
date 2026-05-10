@@ -44,6 +44,9 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [isChromiumOpen, setIsChromiumOpen] = useState(false);
+  const [isChromiumMinimized, setIsChromiumMinimized] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -76,12 +79,26 @@ export function Dashboard({
       return;
     }
 
+    if (!isChromiumOpen) {
+      setIframeKey((value) => value + 1);
+      setIsChromiumOpen(true);
+      setIsChromiumMinimized(false);
+      setActiveApp("chromium");
+      return;
+    }
+
+    if (isChromiumMinimized) {
+      setIsChromiumMinimized(false);
+      setActiveApp("chromium");
+      return;
+    }
+
     if (activeApp === "chromium") {
+      setIsChromiumMinimized(true);
       setActiveApp(null);
       return;
     }
 
-    setIframeKey((value) => value + 1);
     setActiveApp("chromium");
   };
 
@@ -93,11 +110,23 @@ export function Dashboard({
     setIsBusy(true);
     try {
       await closeBrowserRuntime();
+      setIsChromiumOpen(false);
+      setIsChromiumMinimized(false);
       setActiveApp(null);
     } finally {
       setIsBusy(false);
     }
   };
+
+  const minimizeWindow = () => {
+    if (!isChromiumOpen || isChromiumMinimized) {
+      return;
+    }
+
+    setIsChromiumMinimized(true);
+    setActiveApp(null);
+  };
+
   const toggleMaximize = () => {
     if (isMaximized) {
       setIsMaximized(false);
@@ -111,7 +140,7 @@ export function Dashboard({
   };
 
   useEffect(() => {
-    if (activeApp !== "chromium") {
+    if (activeApp !== "chromium" || isChromiumMinimized) {
       return;
     }
 
@@ -175,7 +204,7 @@ export function Dashboard({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [activeApp, isMaximized]);
+  }, [activeApp, isChromiumMinimized, isMaximized]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (isMaximized) {
@@ -215,7 +244,7 @@ export function Dashboard({
             <div>
               <p className="text-sm font-medium text-ink">{activeWorkspace}</p>
               <p className="text-xs text-muted">
-                {overview.stats.workspaceCount} workspace · Chromium ready
+                {overview.stats.workspaceCount} workspace � Chromium ready
               </p>
             </div>
           </div>
@@ -264,9 +293,7 @@ export function Dashboard({
                 </div>
 
                 <h2 className="text-lg font-medium text-ink">{app.label}</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  {app.subtitle}
-                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">{app.subtitle}</p>
               </button>
             ))}
           </div>
@@ -276,8 +303,8 @@ export function Dashboard({
               {apps.map((app) => (
                 <button
                   key={app.id}
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold tracking-[0.18em] transition ${
-                    activeApp === app.id
+                  className={`relative flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold tracking-[0.18em] transition ${
+                    activeApp === app.id && isChromiumOpen && !isChromiumMinimized
                       ? "border-accent/40 bg-accent/15 text-accent"
                       : app.available
                         ? "border-white/10 bg-white/5 text-ink hover:bg-white/10"
@@ -285,16 +312,49 @@ export function Dashboard({
                   }`}
                   disabled={!app.available}
                   onClick={app.available ? () => void openChromium() : undefined}
+                  title={
+                    app.id === "chromium" && isChromiumOpen
+                      ? isChromiumMinimized
+                        ? "Restore Chromium"
+                        : "Minimize Chromium"
+                      : `Open ${app.label}`
+                  }
                   type="button"
                 >
                   {initials(app.label)}
+                  {app.id === "chromium" && isChromiumOpen ? (
+                    <span className="absolute -bottom-1 h-1.5 w-1.5 rounded-full bg-accent" />
+                  ) : null}
                 </button>
               ))}
+              <div className="mx-1 h-8 w-px bg-white/10" />
+              <button
+                className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg transition ${
+                  isSettingsOpen
+                    ? "border-accent/40 bg-accent/15 text-accent"
+                    : "border-white/10 bg-white/5 text-ink hover:bg-white/10"
+                }`}
+                onClick={() => setIsSettingsOpen((value) => !value)}
+                title="Dock settings"
+                type="button"
+              >
+                ?
+              </button>
             </div>
           </div>
+
+          {isSettingsOpen ? (
+            <div className="pointer-events-auto absolute bottom-28 left-1/2 z-40 w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/70 p-4 backdrop-blur-xl">
+              <h3 className="text-sm font-medium text-ink">Dock Settings</h3>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Chromium supports minimize-to-dock. Click its dock icon to minimize and
+                click again to restore without losing session state.
+              </p>
+            </div>
+          ) : null}
         </div>
 
-        {activeApp === "chromium" ? (
+        {isChromiumOpen && !isChromiumMinimized ? (
           <div
             ref={windowRef}
             className={`absolute z-30 ${
@@ -324,10 +384,18 @@ export function Dashboard({
                   <button
                     className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-white/10 hover:text-ink"
                     onPointerDown={stopWindowControlPointer}
+                    onClick={minimizeWindow}
+                    type="button"
+                  >
+                    -
+                  </button>
+                  <button
+                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-white/10 hover:text-ink"
+                    onPointerDown={stopWindowControlPointer}
                     onClick={toggleMaximize}
                     type="button"
                   >
-                    {isMaximized ? "▢" : "□"}
+                    {isMaximized ? "[]" : "[ ]"}
                   </button>
                   <button
                     className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-red-500/20 hover:text-red-200"
@@ -335,7 +403,7 @@ export function Dashboard({
                     onClick={() => void closeWindow()}
                     type="button"
                   >
-                    ×
+                    x
                   </button>
                 </div>
               </div>
