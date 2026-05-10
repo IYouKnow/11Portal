@@ -1,5 +1,6 @@
-import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+﻿import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { closeBrowserRuntime, type Overview, type User, type Workspace } from "../lib/api";
+import { TerminalPanel } from "./TerminalPanel";
 
 type DashboardProps = {
   user: User;
@@ -25,6 +26,13 @@ const apps: DesktopApp[] = [
     badge: "Live",
     available: true,
   },
+  {
+    id: "terminal",
+    label: "Terminal",
+    subtitle: "Linux shell",
+    badge: "Shell",
+    available: true,
+  },
 ];
 
 function initials(label: string) {
@@ -46,6 +54,8 @@ export function Dashboard({
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [isChromiumOpen, setIsChromiumOpen] = useState(false);
   const [isChromiumMinimized, setIsChromiumMinimized] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isTerminalMinimized, setIsTerminalMinimized] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -74,32 +84,51 @@ export function Dashboard({
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
 
-  const openChromium = async () => {
+  const isAppOpen = (appId: string) =>
+    appId === "chromium" ? isChromiumOpen : isTerminalOpen;
+
+  const isAppMinimized = (appId: string) =>
+    appId === "chromium" ? isChromiumMinimized : isTerminalMinimized;
+
+  const toggleApp = async (appId: string) => {
     if (isBusy) {
       return;
     }
 
-    if (!isChromiumOpen) {
-      setIframeKey((value) => value + 1);
-      setIsChromiumOpen(true);
-      setIsChromiumMinimized(false);
-      setActiveApp("chromium");
+    if (!isAppOpen(appId)) {
+      if (appId === "chromium") {
+        setIframeKey((value) => value + 1);
+        setIsChromiumOpen(true);
+        setIsChromiumMinimized(false);
+      } else {
+        setIsTerminalOpen(true);
+        setIsTerminalMinimized(false);
+      }
+      setActiveApp(appId);
       return;
     }
 
-    if (isChromiumMinimized) {
-      setIsChromiumMinimized(false);
-      setActiveApp("chromium");
+    if (isAppMinimized(appId)) {
+      if (appId === "chromium") {
+        setIsChromiumMinimized(false);
+      } else {
+        setIsTerminalMinimized(false);
+      }
+      setActiveApp(appId);
       return;
     }
 
-    if (activeApp === "chromium") {
-      setIsChromiumMinimized(true);
+    if (activeApp === appId) {
+      if (appId === "chromium") {
+        setIsChromiumMinimized(true);
+      } else {
+        setIsTerminalMinimized(true);
+      }
       setActiveApp(null);
       return;
     }
 
-    setActiveApp("chromium");
+    setActiveApp(appId);
   };
 
   const closeWindow = async () => {
@@ -109,9 +138,14 @@ export function Dashboard({
 
     setIsBusy(true);
     try {
-      await closeBrowserRuntime();
-      setIsChromiumOpen(false);
-      setIsChromiumMinimized(false);
+      if (activeApp === "chromium") {
+        await closeBrowserRuntime();
+        setIsChromiumOpen(false);
+        setIsChromiumMinimized(false);
+      } else if (activeApp === "terminal") {
+        setIsTerminalOpen(false);
+        setIsTerminalMinimized(false);
+      }
       setActiveApp(null);
     } finally {
       setIsBusy(false);
@@ -119,11 +153,15 @@ export function Dashboard({
   };
 
   const minimizeWindow = () => {
-    if (!isChromiumOpen || isChromiumMinimized) {
+    if (!activeApp || !isAppOpen(activeApp) || isAppMinimized(activeApp)) {
       return;
     }
 
-    setIsChromiumMinimized(true);
+    if (activeApp === "chromium") {
+      setIsChromiumMinimized(true);
+    } else if (activeApp === "terminal") {
+      setIsTerminalMinimized(true);
+    }
     setActiveApp(null);
   };
 
@@ -140,7 +178,7 @@ export function Dashboard({
   };
 
   useEffect(() => {
-    if (activeApp !== "chromium" || isChromiumMinimized) {
+    if (!activeApp || isAppMinimized(activeApp) || !isAppOpen(activeApp)) {
       return;
     }
 
@@ -204,7 +242,7 @@ export function Dashboard({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [activeApp, isChromiumMinimized, isMaximized]);
+  }, [activeApp, isChromiumMinimized, isChromiumOpen, isMaximized, isTerminalMinimized, isTerminalOpen]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -267,7 +305,7 @@ export function Dashboard({
             <div>
               <p className="text-sm font-medium text-ink">{activeWorkspace}</p>
               <p className="text-xs text-muted">
-                {overview.stats.workspaceCount} workspace � Chromium ready
+                {overview.stats.workspaceCount} workspace · Chromium ready
               </p>
             </div>
           </div>
@@ -303,7 +341,7 @@ export function Dashboard({
                     ? "border-white/10 bg-white/8 hover:border-accent/40 hover:bg-white/12"
                     : "border-white/8 bg-black/20 opacity-85"
                 }`}
-                onClick={app.available ? () => void openChromium() : undefined}
+                onClick={app.available ? () => void toggleApp(app.id) : undefined}
                 type="button"
               >
                 <div className="mb-4 flex items-start justify-between">
@@ -327,25 +365,25 @@ export function Dashboard({
                 <button
                   key={app.id}
                   className={`relative flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold tracking-[0.18em] transition ${
-                    activeApp === app.id && isChromiumOpen && !isChromiumMinimized
+                    activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
                       ? "border-accent/40 bg-accent/15 text-accent"
                       : app.available
                         ? "border-white/10 bg-white/5 text-ink hover:bg-white/10"
                         : "border-white/10 bg-black/20 text-muted"
                   }`}
                   disabled={!app.available}
-                  onClick={app.available ? () => void openChromium() : undefined}
+                  onClick={app.available ? () => void toggleApp(app.id) : undefined}
                   title={
-                    app.id === "chromium" && isChromiumOpen
-                      ? isChromiumMinimized
-                        ? "Restore Chromium"
-                        : "Minimize Chromium"
+                    isAppOpen(app.id)
+                      ? isAppMinimized(app.id)
+                        ? `Restore ${app.label}`
+                        : `Minimize ${app.label}`
                       : `Open ${app.label}`
                   }
                   type="button"
                 >
                   {initials(app.label)}
-                  {app.id === "chromium" && isChromiumOpen ? (
+                  {isAppOpen(app.id) ? (
                     <span className="absolute -bottom-1 h-1.5 w-1.5 rounded-full bg-accent" />
                   ) : null}
                 </button>
@@ -370,14 +408,14 @@ export function Dashboard({
             <div className="pointer-events-auto absolute bottom-28 left-1/2 z-40 w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/70 p-4 backdrop-blur-xl">
               <h3 className="text-sm font-medium text-ink">Dock Settings</h3>
               <p className="mt-2 text-xs leading-5 text-muted">
-                Chromium supports minimize-to-dock. Click its dock icon to minimize and
-                click again to restore without losing session state.
+                Chromium and Terminal support minimize-to-dock. Click an app icon to
+                minimize, then click again to restore without losing session state.
               </p>
             </div>
           ) : null}
         </div>
 
-        {isChromiumOpen && !isChromiumMinimized ? (
+        {activeApp && isAppOpen(activeApp) && !isAppMinimized(activeApp) ? (
           <div
             ref={windowRef}
             className={`absolute z-30 ${
@@ -401,7 +439,7 @@ export function Dashboard({
                 onDoubleClick={handleTitleBarDoubleClick}
               >
                 <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
-                  Chromium
+                  {activeApp === "chromium" ? "Chromium" : "Terminal"}
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -441,15 +479,19 @@ export function Dashboard({
                 </div>
               </div>
 
-              <iframe
-                key={iframeKey}
-                className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
-                  isDragging ? "pointer-events-none" : ""
-                }`}
-                loading="lazy"
-                src="/chromium/"
-                title="Portal Chromium"
-              />
+              {activeApp === "chromium" ? (
+                <iframe
+                  key={iframeKey}
+                  className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
+                    isDragging ? "pointer-events-none" : ""
+                  }`}
+                  loading="lazy"
+                  src="/chromium/"
+                  title="Portal Chromium"
+                />
+              ) : (
+                <TerminalPanel active={isTerminalOpen} />
+              )}
             </div>
           </div>
         ) : null}
@@ -457,5 +499,4 @@ export function Dashboard({
     </main>
   );
 }
-
 

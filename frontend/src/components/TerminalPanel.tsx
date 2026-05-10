@@ -1,18 +1,17 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { FitAddon } from "@xterm/addon-fit";
+import { Terminal } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
 
 type TerminalPanelProps = {
   active: boolean;
 };
 
 export function TerminalPanel({ active }: TerminalPanelProps) {
-  const [lines, setLines] = useState<string[]>([
-    "Portal terminal connected.",
-    "",
-  ]);
-  const [input, setInput] = useState("");
-  const [status, setStatus] = useState("connecting");
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const outputRef = useRef<HTMLDivElement | null>(null);
 
   const websocketURL = useMemo(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -24,91 +23,78 @@ export function TerminalPanel({ active }: TerminalPanelProps) {
       return;
     }
 
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const terminal = new Terminal({
+      cursorBlink: true,
+      fontFamily: "Consolas, 'Courier New', monospace",
+      fontSize: 13,
+      theme: {
+        background: "#030712",
+        foreground: "#e2e8f0",
+      },
+    });
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.open(host);
+    fitAddon.fit();
+    terminal.writeln("Portal terminal connecting...");
+
     const socket = new WebSocket(websocketURL);
     socketRef.current = socket;
+    terminalRef.current = terminal;
+    fitAddonRef.current = fitAddon;
 
-    socket.addEventListener("open", () => {
-      setStatus("online");
-      setLines((current) => [...current, "$ ", ""]);
+    socket.addEventListener("open", () => terminal.writeln("\r\nConnected.\r\n"));
+    socket.addEventListener("message", (event) => terminal.write(String(event.data)));
+    socket.addEventListener("close", () => terminal.writeln("\r\nSession closed."));
+    socket.addEventListener("error", () => terminal.writeln("\r\nConnection error."));
+
+    const onTerminalInput = terminal.onData((data) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(data);
+      }
     });
 
-    socket.addEventListener("message", (event) => {
-      setLines((current) => [...current, String(event.data)]);
-    });
+    const onResize = () => fitAddon.fit();
+    window.addEventListener("resize", onResize);
 
-    socket.addEventListener("close", () => {
-      setStatus("offline");
-    });
-
-    socket.addEventListener("error", () => {
-      setStatus("error");
-    });
+    // Keep websocket alive while terminal app is open/minimized.
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fitAddon.fit();
+      }
+    }, 1200);
 
     return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("resize", onResize);
+      onTerminalInput.dispose();
       socket.close();
+      terminal.dispose();
       socketRef.current = null;
+      terminalRef.current = null;
+      fitAddonRef.current = null;
     };
   }, [active, websocketURL]);
 
   useEffect(() => {
-    outputRef.current?.scrollTo({
-      top: outputRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [lines]);
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+    if (!active) {
       return;
     }
 
-    const nextInput = input.trimEnd();
-    socketRef.current.send(`${nextInput}\n`);
-    setLines((current) => [...current, `> ${nextInput}`]);
-    setInput("");
-  };
+    fitAddonRef.current?.fit();
+    terminalRef.current?.focus();
+  }, [active]);
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-medium text-ink">Terminal</h2>
-          <p className="text-sm text-muted">
-            Interactive shell session over WebSocket.
-          </p>
-        </div>
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-muted">
-          {status}
-        </span>
+    <div className="h-[calc(100%-32px)] w-full bg-black p-2">
+      <div className="h-full w-full rounded-lg border border-white/10 bg-black/80 p-2">
+        <div className="h-full w-full" ref={hostRef} />
       </div>
-
-      <div
-        ref={outputRef}
-        className="terminal-scrollbar h-[360px] overflow-y-auto rounded-2xl border border-white/10 bg-black/50 p-4 font-mono text-sm leading-6 text-slate-200"
-      >
-        {lines.map((line, index) => (
-          <pre key={`${line}-${index}`} className="m-0 whitespace-pre-wrap">
-            {line}
-          </pre>
-        ))}
-      </div>
-
-      <form className="mt-4 flex gap-3" onSubmit={submit}>
-        <input
-          className="flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Enter command"
-        />
-        <button
-          className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20"
-          type="submit"
-        >
-          Send
-        </button>
-      </form>
-    </section>
+    </div>
   );
 }
-
