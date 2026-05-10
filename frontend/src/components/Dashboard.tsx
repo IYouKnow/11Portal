@@ -46,6 +46,7 @@ export function Dashboard({
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
   const [windowPosition, setWindowPosition] = useState({ x: 20, y: 96 });
   const [isMaximized, setIsMaximized] = useState(false);
   const windowRef = useRef<HTMLDivElement | null>(null);
@@ -82,7 +83,10 @@ export function Dashboard({
 
     setIsBusy(true);
     try {
-      await openBrowserRuntime();
+      const runtime = await openBrowserRuntime();
+      if (runtime.started) {
+        setIframeKey((value) => value + 1);
+      }
       setActiveApp("chromium");
     } finally {
       setIsBusy(false);
@@ -180,6 +184,33 @@ export function Dashboard({
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
   }, [activeApp, isMaximized]);
+
+  useEffect(() => {
+    if (activeApp !== "chromium") {
+      return;
+    }
+
+    let cancelled = false;
+    const ensureRunning = async () => {
+      try {
+        const runtime = await openBrowserRuntime();
+        if (!cancelled && runtime.started) {
+          setIframeKey((value) => value + 1);
+        }
+      } catch {
+        // Keep retrying on the next interval; transient failures are expected during restarts.
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void ensureRunning();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [activeApp]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (isMaximized) {
@@ -345,6 +376,7 @@ export function Dashboard({
               </div>
 
               <iframe
+                key={iframeKey}
                 className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
                   isDragging ? "pointer-events-none" : ""
                 }`}

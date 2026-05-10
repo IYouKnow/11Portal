@@ -76,7 +76,7 @@ export async function getWorkspaces() {
 }
 
 export async function openBrowserRuntime() {
-  return request<{ ok: boolean }>("/api/v1/browser/open", {
+  return request<{ ok: boolean; started: boolean }>("/api/v1/browser/open", {
     method: "POST",
   });
 }
