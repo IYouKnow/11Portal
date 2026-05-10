@@ -74,3 +74,15 @@ export async function getOverview() {
 export async function getWorkspaces() {
   return request<{ items: Workspace[] }>("/api/v1/workspaces");
 }
+
+export async function openBrowserRuntime() {
+  return request<{ ok: boolean }>("/api/v1/browser/open", {
+    method: "POST",
+  });
+}
+
+export async function closeBrowserRuntime() {
+  return request<{ ok: boolean }>("/api/v1/browser/close", {
+    method: "POST",
+  });
+}

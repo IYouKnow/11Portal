@@ -16,6 +16,7 @@ type Config struct {
 	DBPath            string
 	Shell             string
 	WorkspacesRoot    string
+	ChromiumContainer string
 }
 
 func Load() Config {
@@ -30,6 +31,7 @@ func Load() Config {
 		DBPath:            envOrDefault("PORTAL_DB_PATH", "./data/portal.db"),
 		Shell:             envOrDefault("PORTAL_SHELL", "/bin/sh"),
 		WorkspacesRoot:    envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
+		ChromiumContainer: envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
 	}
 }
 

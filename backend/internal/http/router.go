@@ -24,6 +24,7 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	}))
 
 	authHandler := handlers.NewAuthHandler(cfg, dataStore)
+	browserRuntimeHandler := handlers.NewBrowserRuntimeHandler(cfg.ChromiumContainer)
 	systemHandler := handlers.NewSystemHandler(cfg, dataStore)
 	workspaceHandler := handlers.NewWorkspaceHandler(dataStore)
 
@@ -34,6 +35,8 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 
 	secured := api.Use(middleware.RequireSession(cfg, dataStore))
 	secured.Get("/auth/me", authHandler.Me)
+	secured.Post("/browser/open", browserRuntimeHandler.Open)
+	secured.Post("/browser/close", browserRuntimeHandler.Close)
 	secured.Get("/system/overview", systemHandler.Overview)
 	secured.Get("/workspaces", workspaceHandler.List)
 

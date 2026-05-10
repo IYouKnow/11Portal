@@ -1,5 +1,5 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type Overview, type User, type Workspace } from "../lib/api";
+import { closeBrowserRuntime, openBrowserRuntime, type Overview, type User, type Workspace } from "../lib/api";
 
 type DashboardProps = {
   user: User;
@@ -45,7 +45,9 @@ export function Dashboard({
 }: DashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   const [windowPosition, setWindowPosition] = useState({ x: 20, y: 96 });
+  const [isMaximized, setIsMaximized] = useState(false);
   const windowRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -53,6 +55,7 @@ export function Dashboard({
     offsetY: number;
   } | null>(null);
   const positionRef = useRef(windowPosition);
+  const lastFloatingPositionRef = useRef(windowPosition);
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -67,9 +70,49 @@ export function Dashboard({
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
 
-  const openChromium = () =>
-    setActiveApp((current) => (current === "chromium" ? null : "chromium"));
-  const closeWindow = () => setActiveApp(null);
+  const openChromium = async () => {
+    if (isBusy) {
+      return;
+    }
+
+    if (activeApp === "chromium") {
+      setActiveApp(null);
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      await openBrowserRuntime();
+      setActiveApp("chromium");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const closeWindow = async () => {
+    if (isBusy) {
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      await closeBrowserRuntime();
+      setActiveApp(null);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+  const toggleMaximize = () => {
+    if (isMaximized) {
+      setIsMaximized(false);
+      setWindowPosition(lastFloatingPositionRef.current);
+      positionRef.current = lastFloatingPositionRef.current;
+      return;
+    }
+
+    lastFloatingPositionRef.current = positionRef.current;
+    setIsMaximized(true);
+  };
 
   useEffect(() => {
     if (activeApp !== "chromium") {
@@ -85,6 +128,10 @@ export function Dashboard({
       if ((event.buttons & 1) !== 1) {
         dragStateRef.current = null;
         setIsDragging(false);
+        return;
+      }
+
+      if (isMaximized) {
         return;
       }
 
@@ -132,9 +179,13 @@ export function Dashboard({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [activeApp]);
+  }, [activeApp, isMaximized]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isMaximized) {
+      return;
+    }
+
     if (event.button !== 0) {
       return;
     }
@@ -147,6 +198,10 @@ export function Dashboard({
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDragging(true);
+  };
+
+  const stopWindowControlPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
   };
 
   return (
@@ -200,7 +255,7 @@ export function Dashboard({
                     ? "border-white/10 bg-white/8 hover:border-accent/40 hover:bg-white/12"
                     : "border-white/8 bg-black/20 opacity-85"
                 }`}
-                onClick={app.available ? openChromium : undefined}
+                onClick={app.available ? () => void openChromium() : undefined}
                 type="button"
               >
                 <div className="mb-4 flex items-start justify-between">
@@ -233,7 +288,7 @@ export function Dashboard({
                         : "border-white/10 bg-black/20 text-muted"
                   }`}
                   disabled={!app.available}
-                  onClick={app.available ? openChromium : undefined}
+                  onClick={app.available ? () => void openChromium() : undefined}
                   type="button"
                 >
                   {initials(app.label)}
@@ -246,13 +301,21 @@ export function Dashboard({
         {activeApp === "chromium" ? (
           <div
             ref={windowRef}
-            className="absolute z-30 h-[min(70vh,720px)] w-[min(78vw,980px)]"
+            className={`absolute z-30 ${
+              isMaximized
+                ? "inset-0 h-screen w-screen"
+                : "h-[min(70vh,720px)] w-[min(78vw,980px)]"
+            }`}
             style={{
-              left: `${windowPosition.x}px`,
-              top: `${windowPosition.y}px`,
+              left: isMaximized ? undefined : `${windowPosition.x}px`,
+              top: isMaximized ? undefined : `${windowPosition.y}px`,
             }}
           >
-            <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-[#07090d] shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
+            <div
+              className={`h-full overflow-hidden border border-white/10 bg-[#07090d] shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
+                isMaximized ? "rounded-none" : "rounded-2xl"
+              }`}
+            >
               <div
                 className="flex h-8 items-center justify-between border-b border-white/10 bg-black/45 px-3 select-none"
                 onPointerDown={startDragging}
@@ -261,13 +324,24 @@ export function Dashboard({
                   Chromium
                 </div>
 
-                <button
-                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-muted transition hover:text-ink"
-                  onClick={closeWindow}
-                  type="button"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-white/10 hover:text-ink"
+                    onPointerDown={stopWindowControlPointer}
+                    onClick={toggleMaximize}
+                    type="button"
+                  >
+                    {isMaximized ? "▢" : "□"}
+                  </button>
+                  <button
+                    className="flex h-5 w-5 items-center justify-center rounded-sm text-xs text-muted transition hover:bg-red-500/20 hover:text-red-200"
+                    onPointerDown={stopWindowControlPointer}
+                    onClick={() => void closeWindow()}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
 
               <iframe

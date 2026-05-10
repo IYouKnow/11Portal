@@ -14,11 +14,10 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates bash
+RUN apk add --no-cache ca-certificates bash docker-cli
 
 COPY --from=build /portal-api /usr/local/bin/portal-api
 
 EXPOSE 8080
 
 CMD ["portal-api"]
-
