@@ -1,24 +1,22 @@
-services:
-  backend:
+﻿services:
+  portal:
     build:
-      context: ./backend
+      context: .
+      dockerfile: Dockerfile.portal
     env_file:
       - ./.env
+    environment:
+      - PORTAL_PUBLIC_URL=http://localhost:3000
+      - PORTAL_FRONTEND_ORIGIN=http://localhost:3000
+      - PORTAL_WEB_ROOT=/app/public
+      - PORTAL_CHROMIUM_URL=https://chromium:3001
     ports:
-      - "8080:8080"
+      - "3000:8080"
     volumes:
       - ./data:/app/data
       - ./workspaces:/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "3000:80"
     depends_on:
-      - backend
       - chromium
     restart: unless-stopped
 
@@ -27,6 +25,7 @@ services:
     image: lscr.io/linuxserver/ungoogled-chromium:latest
     shm_size: "1gb"
     ports:
+      - "3002:3000"
       - "3001:3001"
     environment:
       - PUID=1000
@@ -51,3 +50,4 @@ services:
     volumes:
       - ./data/chromium:/config
     restart: unless-stopped
+

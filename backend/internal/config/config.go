@@ -17,7 +17,9 @@ type Config struct {
 	Shell               string
 	WorkspacesRoot      string
 	ChromiumContainer   string
+	ChromiumURL         string
 	TerminalIdleMinutes int
+	WebRoot             string
 }
 
 func Load() Config {
@@ -33,7 +35,9 @@ func Load() Config {
 		Shell:               envOrDefault("PORTAL_SHELL", "/bin/sh"),
 		WorkspacesRoot:      envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
 		ChromiumContainer:   envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
+		ChromiumURL:         envOrDefault("PORTAL_CHROMIUM_URL", "https://chromium:3001"),
 		TerminalIdleMinutes: envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
+		WebRoot:             envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
 	}
 }
 

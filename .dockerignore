@@ -1,0 +1,9 @@
+﻿.git
+node_modules
+**/node_modules
+backend/.cache
+backend/.modcache
+frontend/dist
+frontend/node_modules
+data
+workspaces
