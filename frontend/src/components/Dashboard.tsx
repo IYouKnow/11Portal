@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type Overview, type User, type Workspace } from "../lib/api";
 
 type DashboardProps = {
@@ -25,27 +25,6 @@ const apps: DesktopApp[] = [
     badge: "Live",
     available: true,
   },
-  {
-    id: "terminal",
-    label: "Terminal",
-    subtitle: "Shell access",
-    badge: "Soon",
-    available: false,
-  },
-  {
-    id: "files",
-    label: "Files",
-    subtitle: "Workspace storage",
-    badge: "Soon",
-    available: false,
-  },
-  {
-    id: "containers",
-    label: "Containers",
-    subtitle: "Runtime control",
-    badge: "Planned",
-    available: false,
-  },
 ];
 
 function initials(label: string) {
@@ -65,13 +44,110 @@ export function Dashboard({
   onLogout,
 }: DashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [windowPosition, setWindowPosition] = useState({ x: 20, y: 96 });
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const positionRef = useRef(windowPosition);
+  const frameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    positionRef.current = windowPosition;
+    if (windowRef.current) {
+      windowRef.current.style.left = `${windowPosition.x}px`;
+      windowRef.current.style.top = `${windowPosition.y}px`;
+    }
+  }, [windowPosition]);
 
   const activeWorkspace = useMemo(() => {
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
 
-  const openChromium = () => setActiveApp("chromium");
+  const openChromium = () =>
+    setActiveApp((current) => (current === "chromium" ? null : "chromium"));
   const closeWindow = () => setActiveApp(null);
+
+  useEffect(() => {
+    if (activeApp !== "chromium") {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = dragStateRef.current;
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+      }
+
+      if ((event.buttons & 1) !== 1) {
+        dragStateRef.current = null;
+        setIsDragging(false);
+        return;
+      }
+
+      const width = Math.min(window.innerWidth * 0.78, 980);
+      const height = Math.min(window.innerHeight * 0.7, 720);
+      const nextX = event.clientX - dragState.offsetX;
+      const nextY = event.clientY - dragState.offsetY;
+
+      const nextPosition = {
+        x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
+        y: Math.max(-28, Math.min(nextY, window.innerHeight - 48)),
+      };
+
+      positionRef.current = nextPosition;
+      if (frameRef.current == null) {
+        frameRef.current = window.requestAnimationFrame(() => {
+          frameRef.current = null;
+          if (windowRef.current) {
+            windowRef.current.style.left = `${positionRef.current.x}px`;
+            windowRef.current.style.top = `${positionRef.current.y}px`;
+          }
+        });
+      }
+    };
+
+    const handlePointerEnd = (event: PointerEvent) => {
+      const dragState = dragStateRef.current;
+      if (dragState && dragState.pointerId === event.pointerId) {
+        dragStateRef.current = null;
+        setIsDragging(false);
+        setWindowPosition(positionRef.current);
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      if (frameRef.current != null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [activeApp]);
+
+  const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - windowPosition.x,
+      offsetY: event.clientY - windowPosition.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-ink">
@@ -80,7 +156,7 @@ export function Dashboard({
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/6 to-transparent" />
 
       <div className="relative flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur">
+        <header className="relative z-10 flex items-center justify-between border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur">
           <div className="flex items-center gap-4">
             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-muted">
               Portal OS
@@ -165,26 +241,28 @@ export function Dashboard({
               ))}
             </div>
           </div>
+        </div>
 
-          {activeApp === "chromium" ? (
-            <div className="absolute inset-x-4 top-24 bottom-24 overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#06080d] shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur sm:inset-x-6">
-              <div className="flex items-center justify-between border-b border-white/10 bg-black/40 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-2">
-                    <span className="h-3 w-3 rounded-full bg-red-400/80" />
-                    <span className="h-3 w-3 rounded-full bg-amber-300/80" />
-                    <span className="h-3 w-3 rounded-full bg-emerald-400/80" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-ink">Chromium</p>
-                    <p className="text-xs text-muted">
-                      Containerized browser session
-                    </p>
-                  </div>
+        {activeApp === "chromium" ? (
+          <div
+            ref={windowRef}
+            className="absolute z-30 h-[min(70vh,720px)] w-[min(78vw,980px)]"
+            style={{
+              left: `${windowPosition.x}px`,
+              top: `${windowPosition.y}px`,
+            }}
+          >
+            <div className="h-full overflow-hidden rounded-2xl border border-white/10 bg-[#07090d] shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
+              <div
+                className="flex h-8 items-center justify-between border-b border-white/10 bg-black/45 px-3 select-none"
+                onPointerDown={startDragging}
+              >
+                <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
+                  Chromium
                 </div>
 
                 <button
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-muted transition hover:text-ink"
+                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-muted transition hover:text-ink"
                   onClick={closeWindow}
                   type="button"
                 >
@@ -193,14 +271,16 @@ export function Dashboard({
               </div>
 
               <iframe
-                className="h-[calc(100%-73px)] w-full border-0 bg-black"
+                className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
+                  isDragging ? "pointer-events-none" : ""
+                }`}
                 loading="lazy"
                 src="/chromium/"
                 title="Portal Chromium"
               />
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );

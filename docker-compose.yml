@@ -32,6 +32,13 @@ services:
       - TZ=Etc/UTC
       - SUBFOLDER=/chromium/
       - TITLE=Portal Chromium
+      - SELKIES_UI_TITLE=Portal
+      - SELKIES_UI_SHOW_LOGO=false|locked
+      - SELKIES_UI_SHOW_SIDEBAR=false|locked
+      - SELKIES_UI_SHOW_CORE_BUTTONS=false|locked
+      - SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON=false|locked
+      - SELKIES_ENABLE_SHARING=false|locked
+      - SELKIES_GAMEPAD_ENABLED=false|locked
       - START_DOCKER=false
       - HARDEN_DESKTOP=true
       - NO_DECOR=true
