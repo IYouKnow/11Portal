@@ -21,6 +21,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalize owner
+        id: vars
+        run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -38,9 +42,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/portal
+          images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/portal
           tags: |
             type=ref,event=tag
+            type=match,pattern=v\\.?(.+),group=1
             type=raw,value=latest
 
       - name: Build and push portal
