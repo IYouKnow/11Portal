@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vite/
+coverage/
+
+backend/bin/
+backend/.cache/
+backend/.modcache/
+
+data/*.db
+data/*.db-*
+data/tmp/
+
+.env
+.DS_Store
+Thumbs.db
+data

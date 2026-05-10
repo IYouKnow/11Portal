@@ -1,0 +1,43 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./workspaces:/workspaces
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+      - chromium
+    restart: unless-stopped
+
+  chromium:
+    image: lscr.io/linuxserver/ungoogled-chromium:latest
+    shm_size: "1gb"
+    ports:
+      - "3001:3001"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SUBFOLDER=/chromium/
+      - TITLE=Portal Chromium
+      - START_DOCKER=false
+      - HARDEN_DESKTOP=true
+      - NO_DECOR=true
+      - NO_FULL=true
+      - DISABLE_IPV6=true
+      - CHROME_CLI=--disable-background-networking --disable-component-update --disable-default-apps --disable-extensions --disable-features=MediaRouter,OptimizationHints,Translate --disable-sync --no-default-browser-check --no-first-run --password-store=basic
+    volumes:
+      - ./data/chromium:/config
+    restart: unless-stopped

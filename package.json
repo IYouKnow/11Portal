@@ -1,0 +1,16 @@
+{
+  "name": "portal",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c cyan,magenta \"set \\\"CGO_ENABLED=1\\\" && set \\\"GOCACHE=%cd%\\\\backend\\\\.cache\\\" && set \\\"GOMODCACHE=%cd%\\\\backend\\\\.modcache\\\" && go -C backend run ./cmd/portal-api\" \"corepack pnpm --dir frontend dev\"",
+    "dev:backend": "set \"CGO_ENABLED=1\" && set \"GOCACHE=%cd%\\backend\\.cache\" && set \"GOMODCACHE=%cd%\\backend\\.modcache\" && go -C backend run ./cmd/portal-api",
+    "dev:frontend": "corepack pnpm --dir frontend dev",
+    "build": "corepack pnpm --dir frontend build && set \"CGO_ENABLED=1\" && set \"GOCACHE=%cd%\\backend\\.cache\" && set \"GOMODCACHE=%cd%\\backend\\.modcache\" && go -C backend test ./...",
+    "install:frontend": "corepack pnpm --dir frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
