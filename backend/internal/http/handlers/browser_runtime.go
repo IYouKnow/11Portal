@@ -30,7 +30,7 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 		h.containerName,
 		"bash",
 		"-lc",
-		"pgrep -f '^/opt/ungoogledchromium/chrome ' >/dev/null",
+		"pgrep -f '^/opt/ungoogledchromium/chrome ' >/dev/null || pgrep -f '^/bin/bash /usr/bin/wrapped-chromium' >/dev/null",
 	)
 	if err := checkCmd.Run(); err == nil {
 		return c.JSON(fiber.Map{
@@ -66,11 +66,18 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 		h.containerName,
 		"bash",
 		"-lc",
-		"LABWC_PID=$(pgrep -xo labwc || true); " +
+		"LOCK=/tmp/portal-chromium-open.lock; " +
+			"if [ -e \"$LOCK\" ] && kill -0 \"$(cat \"$LOCK\" 2>/dev/null)\" 2>/dev/null; then exit 0; fi; " +
+			"echo $$ > \"$LOCK\"; trap 'rm -f \"$LOCK\"' EXIT; " +
+			"if pgrep -f '^/opt/ungoogledchromium/chrome ' >/dev/null || pgrep -f '^/bin/bash /usr/bin/wrapped-chromium' >/dev/null; then exit 0; fi; " +
+			"LABWC_PID=$(pgrep -xo labwc || true); " +
 			"if [ -n \"$LABWC_PID\" ]; then " +
 			"eval \"$(tr '\\0' '\\n' < /proc/$LABWC_PID/environ | grep -E '^(XDG_RUNTIME_DIR|WAYLAND_DISPLAY|DISPLAY)=' | sed 's/^/export /')\"; " +
 			"fi; " +
-			"wrapped-chromium --enable-features=UseOzonePlatform --ozone-platform=wayland ${CHROME_CLI}",
+			"/opt/ungoogledchromium/chrome --no-sandbox --test-type " +
+			"--password-store=basic --simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT' --user-data-dir " +
+			"--new-window --window-size=1366,820 --window-position=80,60 " +
+			"--enable-features=UseOzonePlatform --ozone-platform=wayland ${CHROME_CLI} >/dev/null 2>&1 &",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

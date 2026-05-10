@@ -43,6 +43,7 @@ services:
       - SELKIES_GAMEPAD_ENABLED=false|locked
       - START_DOCKER=false
       - HARDEN_DESKTOP=true
+      - RESTART_APP=false
       - NO_DECOR=true
       - NO_FULL=true
       - DISABLE_IPV6=true

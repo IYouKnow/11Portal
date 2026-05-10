@@ -1,5 +1,5 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { closeBrowserRuntime, openBrowserRuntime, type Overview, type User, type Workspace } from "../lib/api";
+import { closeBrowserRuntime, type Overview, type User, type Workspace } from "../lib/api";
 
 type DashboardProps = {
   user: User;
@@ -81,16 +81,8 @@ export function Dashboard({
       return;
     }
 
-    setIsBusy(true);
-    try {
-      const runtime = await openBrowserRuntime();
-      if (runtime.started) {
-        setIframeKey((value) => value + 1);
-      }
-      setActiveApp("chromium");
-    } finally {
-      setIsBusy(false);
-    }
+    setIframeKey((value) => value + 1);
+    setActiveApp("chromium");
   };
 
   const closeWindow = async () => {
@@ -184,33 +176,6 @@ export function Dashboard({
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
   }, [activeApp, isMaximized]);
-
-  useEffect(() => {
-    if (activeApp !== "chromium") {
-      return;
-    }
-
-    let cancelled = false;
-    const ensureRunning = async () => {
-      try {
-        const runtime = await openBrowserRuntime();
-        if (!cancelled && runtime.started) {
-          setIframeKey((value) => value + 1);
-        }
-      } catch {
-        // Keep retrying on the next interval; transient failures are expected during restarts.
-      }
-    };
-
-    const interval = window.setInterval(() => {
-      void ensureRunning();
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [activeApp]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (isMaximized) {
