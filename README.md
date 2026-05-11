@@ -99,6 +99,32 @@ docker compose up chromium
 This exposes Chromium locally on `https://localhost:3001`, which is what the
 Vite dev proxy uses for `/chromium/`.
 
+## Chromium Routing
+
+Portal now separates Chromium's internal upstream from its public browser URL:
+
+- `PORTAL_CHROMIUM_INTERNAL_URL`: where Portal reaches Selkies/Chromium on the
+  private network, for example `https://chromium:3001/chromium`
+- `PORTAL_CHROMIUM_PUBLIC_URL`: the URL the browser should open in the iframe,
+  for example `/chromium/` for same-origin proxying or
+  `https://chromium.example.com/chromium` for an external hostname
+
+For same-origin deployments, keep:
+
+```env
+PORTAL_CHROMIUM_PUBLIC_URL=/chromium/
+```
+
+For separate-hostname deployments behind Cloudflare Tunnel or similar, set:
+
+```env
+PORTAL_CHROMIUM_INTERNAL_URL=https://chromium:3001/chromium
+PORTAL_CHROMIUM_PUBLIC_URL=https://chromium.example.com/chromium
+```
+
+`PORTAL_CHROMIUM_URL` is still accepted as a compatibility fallback, but new
+deployments should prefer the explicit internal/public variables above.
+
 ## API Overview
 
 - `GET /api/v1/health`

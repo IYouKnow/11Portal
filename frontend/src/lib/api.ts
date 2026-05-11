@@ -18,6 +18,7 @@ export type Overview = {
     publicURL: string;
     workspacesRoot: string;
     runtime: string;
+    chromiumURL: string;
   };
   stats: {
     workspaceCount: number;

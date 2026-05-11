@@ -37,6 +37,7 @@ func (h *SystemHandler) Overview(c *fiber.Ctx) error {
 			"publicURL":      h.cfg.PublicURL,
 			"workspacesRoot": h.cfg.WorkspacesRoot,
 			"runtime":        runtime.GOOS + "/" + runtime.GOARCH,
+			"chromiumURL":    h.cfg.ChromiumPublicURL,
 		},
 		"stats": fiber.Map{
 			"workspaceCount": len(workspaces),

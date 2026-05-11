@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"crypto/tls"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -24,6 +25,12 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "Portal API",
 	})
+
+	if strings.HasPrefix(cfg.PublicURL, "http://") &&
+		!strings.HasPrefix(cfg.PublicURL, "http://localhost") &&
+		!strings.HasPrefix(cfg.PublicURL, "http://127.0.0.1") {
+		log.Printf("WARNING: Portal is configured with a non-HTTPS public URL (%s). Chromium/Selkies requires HTTPS or localhost for a secure browser context.", cfg.PublicURL)
+	}
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.FrontendOrigin,
@@ -78,7 +85,7 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		}),
 	)
 
-	if chromiumURL, err := url.Parse(cfg.ChromiumURL); err == nil {
+	if chromiumURL, err := url.Parse(cfg.ChromiumInternalURL); err == nil && shouldProxyChromium(cfg) {
 		chromiumProxy := httputil.NewSingleHostReverseProxy(chromiumURL)
 		originalDirector := chromiumProxy.Director
 		chromiumProxy.Director = func(req *http.Request) {
@@ -96,7 +103,7 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 			}
 			return nil
 		}
-		app.Use("/chromium", adaptor.HTTPHandler(chromiumProxy))
+		app.Use("/chromium", middleware.RequireSession(cfg, dataStore), adaptor.HTTPHandler(chromiumProxy))
 	}
 
 	if cfg.WebRoot != "" {
@@ -109,4 +116,15 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	}
 
 	return app
+}
+
+func shouldProxyChromium(cfg config.Config) bool {
+	publicChromiumURL := strings.TrimSpace(cfg.ChromiumPublicURL)
+	publicURL := strings.TrimRight(strings.TrimSpace(cfg.PublicURL), "/")
+
+	if publicChromiumURL == "" {
+		return true
+	}
+
+	return publicChromiumURL == publicURL+"/chromium" || publicChromiumURL == publicURL+"/chromium/"
 }

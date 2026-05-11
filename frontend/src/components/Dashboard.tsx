@@ -84,7 +84,7 @@ export function Dashboard({
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
 
-  const chromiumSrc = "/chromium/";
+  const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
 
   const isAppOpen = (appId: string) =>
     appId === "chromium" ? isChromiumOpen : isTerminalOpen;

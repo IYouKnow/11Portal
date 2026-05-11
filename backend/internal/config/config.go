@@ -1,8 +1,10 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -17,15 +19,29 @@ type Config struct {
 	Shell               string
 	WorkspacesRoot      string
 	ChromiumContainer   string
-	ChromiumURL         string
+	ChromiumInternalURL string
+	ChromiumPublicURL   string
 	TerminalIdleMinutes int
 	WebRoot             string
 }
 
 func Load() Config {
+	publicURL := envOrDefault("PORTAL_PUBLIC_URL", "http://localhost:8080")
+	legacyChromiumURL := envOrDefault("PORTAL_CHROMIUM_URL", "https://chromium:3001/chromium")
+
+	chromiumInternalURL := envOrDefault("PORTAL_CHROMIUM_INTERNAL_URL", legacyChromiumURL)
+	chromiumPublicURL := envOrDefault("PORTAL_CHROMIUM_PUBLIC_URL", "")
+	if chromiumPublicURL == "" {
+		if shouldUseLegacyChromiumURLAsPublic(publicURL, legacyChromiumURL) {
+			chromiumPublicURL = legacyChromiumURL
+		} else {
+			chromiumPublicURL = joinURLPath(publicURL, "/chromium/")
+		}
+	}
+
 	return Config{
 		HTTPAddr:            envOrDefault("PORTAL_HTTP_ADDR", ":8080"),
-		PublicURL:           envOrDefault("PORTAL_PUBLIC_URL", "http://localhost:8080"),
+		PublicURL:           publicURL,
 		FrontendOrigin:      envOrDefault("PORTAL_FRONTEND_ORIGIN", "http://localhost:5173"),
 		SessionCookieName:   envOrDefault("PORTAL_SESSION_COOKIE_NAME", "portal_session"),
 		SessionTTLHours:     envOrDefaultInt("PORTAL_SESSION_TTL_HOURS", 24),
@@ -35,7 +51,8 @@ func Load() Config {
 		Shell:               envOrDefault("PORTAL_SHELL", "/bin/sh"),
 		WorkspacesRoot:      envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
 		ChromiumContainer:   envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
-		ChromiumURL:         envOrDefault("PORTAL_CHROMIUM_URL", "http://chromium:3000"),
+		ChromiumInternalURL: chromiumInternalURL,
+		ChromiumPublicURL:   chromiumPublicURL,
 		TerminalIdleMinutes: envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
 		WebRoot:             envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
 	}
@@ -61,4 +78,37 @@ func envOrDefaultInt(key string, fallback int) int {
 	}
 
 	return parsed
+}
+
+func hasHTTPPrefix(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
+}
+
+func joinURLPath(base, path string) string {
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
+}
+
+func shouldUseLegacyChromiumURLAsPublic(publicURL, legacyChromiumURL string) bool {
+	if !hasHTTPPrefix(legacyChromiumURL) {
+		return false
+	}
+
+	legacyParsed, legacyErr := url.Parse(legacyChromiumURL)
+	publicParsed, publicErr := url.Parse(publicURL)
+	if legacyErr != nil || publicErr != nil {
+		return false
+	}
+
+	legacyHost := strings.ToLower(legacyParsed.Hostname())
+	publicHost := strings.ToLower(publicParsed.Hostname())
+
+	if legacyHost == "" || legacyHost == publicHost {
+		return false
+	}
+
+	if !strings.Contains(legacyHost, ".") {
+		return false
+	}
+
+	return strings.HasPrefix(legacyParsed.Path, "/chromium")
 }
