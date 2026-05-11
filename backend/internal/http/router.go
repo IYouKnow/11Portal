@@ -83,16 +83,16 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		originalDirector := chromiumProxy.Director
 		chromiumProxy.Director = func(req *http.Request) {
 			originalDirector(req)
-			req.Host = "localhost:3001"
-			req.Header.Set("Host", "localhost:3001")
+			req.Host = chromiumURL.Host
+			req.Header.Set("Host", chromiumURL.Host)
 		}
 		chromiumProxy.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 		chromiumProxy.ModifyResponse = func(resp *http.Response) error {
 			location := resp.Header.Get("Location")
-			if strings.Contains(location, "/chromium") {
-				resp.Header.Set("Location", "/chromium/")
+			if location != "" && strings.Contains(location, "/chromium") {
+				resp.Header.Set("Location", strings.Replace(location, chromiumURL.String(), "", 1))
 			}
 			return nil
 		}

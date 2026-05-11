@@ -84,11 +84,7 @@ export function Dashboard({
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
 
-  const chromiumSrc = useMemo(() => {
-    const protocol = "http:";
-    const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3002/chromium/`;
-  }, []);
+  const chromiumSrc = "/chromium/";
 
   const isAppOpen = (appId: string) =>
     appId === "chromium" ? isChromiumOpen : isTerminalOpen;

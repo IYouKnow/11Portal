@@ -1,17 +1,22 @@
 ﻿services:
   portal:
-    build:
-      context: .
-      dockerfile: Dockerfile.portal
-    env_file:
-      - ./.env
+    image: ghcr.io/iyouknow/portal:${PORTAL_IMAGE_TAG-v0.1.0}
+    pull_policy: always
     environment:
-      - PORTAL_PUBLIC_URL=http://localhost:3000
-      - PORTAL_FRONTEND_ORIGIN=http://localhost:3000
+      - PORTAL_ADMIN_EMAIL=admin@portal.local
+      - PORTAL_ADMIN_PASSWORD=change-me-now
+      - PORTAL_DB_PATH=/app/data/portal.db
+      - PORTAL_HTTP_ADDR=:8080
+      - PORTAL_SESSION_COOKIE_NAME=portal_session
+      - PORTAL_SESSION_TTL_HOURS=24
+      - PORTAL_SHELL=/bin/sh
+      - PORTAL_WORKSPACES_ROOT=/workspaces
+      - PORTAL_PUBLIC_URL=http://localhost:38480
+      - PORTAL_FRONTEND_ORIGIN=http://localhost:38480
       - PORTAL_WEB_ROOT=/app/public
-      - PORTAL_CHROMIUM_URL=https://chromium:3001
+      - PORTAL_CHROMIUM_URL=http://chromium:3000
     ports:
-      - "3000:8080"
+      - "38480:8080"
     volumes:
       - ./data:/app/data
       - ./workspaces:/workspaces
@@ -25,8 +30,8 @@
     image: lscr.io/linuxserver/ungoogled-chromium:latest
     shm_size: "1gb"
     ports:
-      - "3002:3000"
-      - "3001:3001"
+      - "38482:3000"
+      - "38481:3001"
     environment:
       - PUID=1000
       - PGID=1000
@@ -50,4 +55,5 @@
     volumes:
       - ./data/chromium:/config
     restart: unless-stopped
+
 
