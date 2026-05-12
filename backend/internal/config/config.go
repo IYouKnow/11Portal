@@ -101,14 +101,20 @@ func shouldUseLegacyChromiumURLAsPublic(publicURL, legacyChromiumURL string) boo
 
 	legacyHost := strings.ToLower(legacyParsed.Hostname())
 	publicHost := strings.ToLower(publicParsed.Hostname())
+	legacyPort := legacyParsed.Port()
+	publicPort := publicParsed.Port()
 
-	if legacyHost == "" || legacyHost == publicHost {
+	if legacyHost == "" {
 		return false
 	}
 
-	if !strings.Contains(legacyHost, ".") {
+	if !strings.HasPrefix(legacyParsed.Path, "/chromium") {
 		return false
 	}
 
-	return strings.HasPrefix(legacyParsed.Path, "/chromium")
+	if legacyHost != publicHost || legacyPort != publicPort {
+		return true
+	}
+
+	return false
 }

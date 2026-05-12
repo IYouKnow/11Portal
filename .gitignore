@@ -12,6 +12,8 @@ data/*.db-*
 data/tmp/
 
 .env
+docker-compose.override.yml
 .DS_Store
 Thumbs.db
 data
+1.md

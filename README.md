@@ -41,8 +41,10 @@ Portal/
 ## Features Included
 
 - Login/logout session flow backed by SQLite
+- Role-based auth with `admin` and `user` accounts
 - Admin bootstrap from environment variables
 - REST API for auth, system state, and workspace cards
+- Admin-only API for managed user creation
 - WebSocket shell endpoint for browser terminal access
 - Browser-accessible Chromium workspace session after login
 - Separated frontend and backend apps
@@ -61,6 +63,7 @@ docker compose up --build
 
 4. Open `http://localhost:3000`.
 5. Log in with the admin email and password from `.env`.
+6. Create additional `user` or `admin` accounts from the dashboard. There is no public registration page.
 
 ## Local Development
 
@@ -132,6 +135,8 @@ deployments should prefer the explicit internal/public variables above.
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/system/overview`
+- `GET /api/v1/users`
+- `POST /api/v1/users`
 - `GET /api/v1/workspaces`
 - `GET /ws/terminal`
 
@@ -140,4 +145,5 @@ deployments should prefer the explicit internal/public variables above.
 - The browser terminal session runs inside the backend container or backend host process.
 - The browser surface is a real streamed Chromium session, not an HTML proxy.
 - The first admin account is ensured at startup from environment variables.
+- Public self-registration is intentionally disabled. New users are created by admins after sign-in.
 - The structure is intentionally modular so future app launchers, remote desktop, and Docker orchestration features can be added without reshaping the project.

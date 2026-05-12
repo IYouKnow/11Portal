@@ -7,8 +7,8 @@ type LoginScreenProps = {
 };
 
 export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
-  const [email, setEmail] = useState("admin@portal.local");
-  const [password, setPassword] = useState("change-me-now");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,11 +26,11 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
             Portal
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-ink">
-            Browser workspace control.
+            Secure portal access.
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Self-hosted terminal access, workspace visibility, and a foundation
-            for future orchestration features.
+            Sign in with credentials issued by an administrator. Registration is
+            disabled, and access is managed through `user` and `admin` roles.
           </p>
         </div>
 
@@ -43,6 +43,8 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               autoComplete="username"
+              placeholder="you@company.com"
+              required
             />
           </label>
 
@@ -54,6 +56,8 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               autoComplete="current-password"
+              placeholder="Enter your password"
+              required
             />
           </label>
 
@@ -75,4 +79,3 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
     </main>
   );
 }
-

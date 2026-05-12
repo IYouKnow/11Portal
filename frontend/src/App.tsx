@@ -3,7 +3,18 @@ import { LoginScreen } from "./components/LoginScreen";
 import { usePortalData } from "./hooks/usePortalData";
 
 export default function App() {
-  const { loading, user, overview, workspaces, error, refresh, signIn, signOut } =
+  const {
+    loading,
+    user,
+    overview,
+    workspaces,
+    users,
+    error,
+    refresh,
+    signIn,
+    signOut,
+    createManagedUser,
+  } =
     usePortalData();
 
   if (!user || !overview) {
@@ -21,8 +32,11 @@ export default function App() {
       user={user}
       overview={overview}
       workspaces={workspaces}
+      users={users}
+      error={error}
       onRefresh={refresh}
       onLogout={signOut}
+      onCreateUser={createManagedUser}
     />
   );
 }

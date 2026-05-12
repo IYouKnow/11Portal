@@ -36,3 +36,27 @@ func RequireSession(cfg config.Config, dataStore *store.Store) fiber.Handler {
 		return c.Next()
 	}
 }
+
+func RequireRole(roles ...string) fiber.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+
+	return func(c *fiber.Ctx) error {
+		user, ok := c.Locals("user").(*store.User)
+		if !ok || user == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "authentication required",
+			})
+		}
+
+		if _, allowedRole := allowed[user.Role]; !allowedRole {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "insufficient permissions",
+			})
+		}
+
+		return c.Next()
+	}
+}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -54,7 +55,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		Name:     h.cfg.SessionCookieName,
 		Value:    session.Token,
 		HTTPOnly: true,
-		Secure:   false,
+		Secure:   strings.HasPrefix(strings.ToLower(h.cfg.PublicURL), "https://"),
 		SameSite: "lax",
 		Expires:  session.ExpiresAt,
 		Path:     "/",

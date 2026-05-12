@@ -1,13 +1,32 @@
-﻿import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
-import { closeBrowserRuntime, type Overview, type User, type Workspace } from "../lib/api";
+import {
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  closeBrowserRuntime,
+  type Overview,
+  type User,
+  type Workspace,
+} from "../lib/api";
 import { TerminalPanel } from "./TerminalPanel";
 
 type DashboardProps = {
   user: User;
   overview: Overview;
   workspaces: Workspace[];
+  users: User[];
+  error: string | null;
   onRefresh: () => Promise<void>;
   onLogout: () => Promise<void>;
+  onCreateUser: (
+    email: string,
+    password: string,
+    role: User["role"],
+  ) => Promise<void>;
 };
 
 type DesktopApp = {
@@ -48,8 +67,11 @@ export function Dashboard({
   user,
   overview,
   workspaces,
+  users,
+  error,
   onRefresh,
   onLogout,
+  onCreateUser,
 }: DashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
   const [isChromiumOpen, setIsChromiumOpen] = useState(false);
@@ -59,9 +81,13 @@ export function Dashboard({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
   const [windowPosition, setWindowPosition] = useState({ x: 20, y: 96 });
   const [isMaximized, setIsMaximized] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<User["role"]>("user");
   const windowRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -83,6 +109,7 @@ export function Dashboard({
   const activeWorkspace = useMemo(() => {
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
+  const isAdmin = user.role === "admin";
 
   const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
 
@@ -244,7 +271,14 @@ export function Dashboard({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [activeApp, isChromiumMinimized, isChromiumOpen, isMaximized, isTerminalMinimized, isTerminalOpen]);
+  }, [
+    activeApp,
+    isChromiumMinimized,
+    isChromiumOpen,
+    isMaximized,
+    isTerminalMinimized,
+    isTerminalOpen,
+  ]);
 
   const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -259,11 +293,18 @@ export function Dashboard({
 
     if (isMaximized) {
       const restoredWidth = Math.min(window.innerWidth * 0.78, 980);
-      const pointerRatio = window.innerWidth > 0 ? event.clientX / window.innerWidth : 0.5;
-      const anchorX = Math.max(28, Math.min(restoredWidth - 28, restoredWidth * pointerRatio));
+      const pointerRatio =
+        window.innerWidth > 0 ? event.clientX / window.innerWidth : 0.5;
+      const anchorX = Math.max(
+        28,
+        Math.min(restoredWidth - 28, restoredWidth * pointerRatio),
+      );
 
       nextPosition = {
-        x: Math.max(-restoredWidth + 120, Math.min(event.clientX - anchorX, window.innerWidth - 120)),
+        x: Math.max(
+          -restoredWidth + 120,
+          Math.min(event.clientX - anchorX, window.innerWidth - 120),
+        ),
         y: Math.max(-28, Math.min(event.clientY - 16, window.innerHeight - 48)),
       };
 
@@ -284,12 +325,28 @@ export function Dashboard({
     setIsDragging(true);
   };
 
-  const stopWindowControlPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const stopWindowControlPointer = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
     event.stopPropagation();
   };
 
   const handleTitleBarDoubleClick = () => {
     toggleMaximize();
+  };
+
+  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsCreatingUser(true);
+
+    try {
+      await onCreateUser(newUserEmail, newUserPassword, newUserRole);
+      setNewUserEmail("");
+      setNewUserPassword("");
+      setNewUserRole("user");
+    } finally {
+      setIsCreatingUser(false);
+    }
   };
 
   return (
@@ -313,8 +370,17 @@ export function Dashboard({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted sm:block">
-              {user.email}
+            <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted sm:flex">
+              <span className="text-ink">{user.email}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 uppercase tracking-[0.22em] ${
+                  isAdmin
+                    ? "bg-emerald-500/15 text-emerald-200"
+                    : "bg-sky-500/15 text-sky-200"
+                }`}
+              >
+                {user.role}
+              </span>
             </div>
             <button
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-ink transition hover:bg-white/10"
@@ -361,13 +427,133 @@ export function Dashboard({
             ))}
           </div>
 
+          {isAdmin ? (
+            <section className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-muted">
+                      Access
+                    </p>
+                    <h2 className="mt-2 text-xl font-medium text-ink">Team users</h2>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted">
+                    {users.length} accounts
+                  </span>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {users.map((account) => (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-ink">{account.email}</p>
+                        <p className="mt-1 text-xs text-muted">
+                          Created {new Date(account.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
+                          account.role === "admin"
+                            ? "bg-emerald-500/15 text-emerald-200"
+                            : "bg-sky-500/15 text-sky-200"
+                        }`}
+                      >
+                        {account.role}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <section className="rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.28em] text-muted">
+                  Admin only
+                </p>
+                <h2 className="mt-2 text-xl font-medium text-ink">Create account</h2>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Registration is disabled publicly. Admins create credentials here
+                  and share them directly with the user.
+                </p>
+
+                <form className="mt-5 space-y-4" onSubmit={handleCreateUser}>
+                  <label className="block">
+                    <span className="mb-2 block text-sm text-muted">Email</span>
+                    <input
+                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                      onChange={(event) => setNewUserEmail(event.target.value)}
+                      required
+                      type="email"
+                      value={newUserEmail}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm text-muted">
+                      Temporary password
+                    </span>
+                    <input
+                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                      minLength={10}
+                      onChange={(event) => setNewUserPassword(event.target.value)}
+                      required
+                      type="password"
+                      value={newUserPassword}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm text-muted">Role</span>
+                    <select
+                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                      onChange={(event) =>
+                        setNewUserRole(event.target.value as User["role"])
+                      }
+                      value={newUserRole}
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </label>
+
+                  <button
+                    className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={isCreatingUser}
+                    type="submit"
+                  >
+                    {isCreatingUser ? "Creating account..." : "Create account"}
+                  </button>
+                </form>
+              </section>
+            </section>
+          ) : (
+            <section className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted">Access</p>
+              <h2 className="mt-2 text-xl font-medium text-ink">Signed in as user</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Your account can access the Portal workspace. Admin accounts can
+                also manage other users from this dashboard.
+              </p>
+            </section>
+          )}
+
+          {error ? (
+            <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
+            </div>
+          ) : null}
+
           <div className="pointer-events-none mt-auto flex justify-center pt-8">
             <div className="pointer-events-auto flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
               {apps.map((app) => (
                 <button
                   key={app.id}
                   className={`relative flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold tracking-[0.18em] transition ${
-                    activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
+                    activeApp === app.id &&
+                    isAppOpen(app.id) &&
+                    !isAppMinimized(app.id)
                       ? "border-accent/40 bg-accent/15 text-accent"
                       : app.available
                         ? "border-white/10 bg-white/5 text-ink hover:bg-white/10"
@@ -410,8 +596,9 @@ export function Dashboard({
             <div className="pointer-events-auto absolute bottom-28 left-1/2 z-40 w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/70 p-4 backdrop-blur-xl">
               <h3 className="text-sm font-medium text-ink">Dock Settings</h3>
               <p className="mt-2 text-xs leading-5 text-muted">
-                Chromium and Terminal support minimize-to-dock. Click an app icon to
-                minimize, then click again to restore without losing session state.
+                Chromium and Terminal support minimize-to-dock. Click an app icon
+                to minimize, then click again to restore without losing session
+                state.
               </p>
             </div>
           ) : null}
@@ -436,9 +623,9 @@ export function Dashboard({
               }`}
             >
               <div
-                className="flex h-8 items-center justify-between border-b border-white/10 bg-black/45 px-3 select-none"
-                onPointerDown={startDragging}
+                className="flex h-8 select-none items-center justify-between border-b border-white/10 bg-black/45 px-3"
                 onDoubleClick={handleTitleBarDoubleClick}
+                onPointerDown={startDragging}
               >
                 <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
                   {activeApp === "chromium" ? "Chromium" : "Terminal"}
@@ -447,33 +634,65 @@ export function Dashboard({
                 <div className="flex items-center gap-1.5">
                   <button
                     className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
-                    onPointerDown={stopWindowControlPointer}
                     onClick={minimizeWindow}
+                    onPointerDown={stopWindowControlPointer}
                     type="button"
                   >
                     -
                   </button>
                   <button
                     className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
-                    onPointerDown={stopWindowControlPointer}
                     onClick={toggleMaximize}
+                    onPointerDown={stopWindowControlPointer}
                     type="button"
                   >
                     {isMaximized ? (
-                      <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
-                        <rect height="11" rx="1.5" stroke="currentColor" strokeWidth="1.8" width="11" x="5" y="8" />
-                        <path d="M9 8V5h10v10h-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                      <svg
+                        aria-hidden="true"
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <rect
+                          height="11"
+                          rx="1.5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          width="11"
+                          x="5"
+                          y="8"
+                        />
+                        <path
+                          d="M9 8V5h10v10h-3"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="1.8"
+                        />
                       </svg>
                     ) : (
-                      <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
-                        <rect height="14" rx="2" stroke="currentColor" strokeWidth="1.8" width="14" x="5" y="5" />
+                      <svg
+                        aria-hidden="true"
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <rect
+                          height="14"
+                          rx="2"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          width="14"
+                          x="5"
+                          y="5"
+                        />
                       </svg>
                     )}
                   </button>
                   <button
                     className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
-                    onPointerDown={stopWindowControlPointer}
                     onClick={() => void closeWindow()}
+                    onPointerDown={stopWindowControlPointer}
                     type="button"
                   >
                     x
@@ -501,4 +720,3 @@ export function Dashboard({
     </main>
   );
 }
-

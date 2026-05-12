@@ -1,6 +1,7 @@
 export type User = {
   id: number;
   email: string;
+  role: "admin" | "user";
   createdAt: string;
 };
 
@@ -97,6 +98,17 @@ export async function getOverview() {
 
 export async function getWorkspaces() {
   return request<{ items: Workspace[] }>("/api/v1/workspaces");
+}
+
+export async function listUsers() {
+  return request<{ items: User[] }>("/api/v1/users");
+}
+
+export async function createUser(email: string, password: string, role: User["role"]) {
+  return request<{ user: User }>("/api/v1/users", {
+    method: "POST",
+    body: JSON.stringify({ email, password, role }),
+  });
 }
 
 export async function openBrowserRuntime() {

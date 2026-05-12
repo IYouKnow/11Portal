@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
+  createUser,
   getCurrentUser,
   getOverview,
   getWorkspaces,
   login,
+  listUsers,
   logout,
   type Overview,
   type User,
@@ -15,6 +17,7 @@ type PortalState = {
   user: User | null;
   overview: Overview | null;
   workspaces: Workspace[];
+  users: User[];
   error: string | null;
 };
 
@@ -23,6 +26,7 @@ const initialState: PortalState = {
   user: null,
   overview: null,
   workspaces: [],
+  users: [],
   error: null,
 };
 
@@ -39,11 +43,15 @@ export function usePortalData() {
         getWorkspaces(),
       ]);
 
+      const users =
+        user.role === "admin" ? (await listUsers()).items : [];
+
       setState({
         loading: false,
         user,
         overview,
         workspaces: workspaces.items,
+        users,
         error: null,
       });
     } catch {
@@ -52,6 +60,7 @@ export function usePortalData() {
         user: null,
         overview: null,
         workspaces: [],
+        users: [],
         error: null,
       });
     }
@@ -83,8 +92,29 @@ export function usePortalData() {
       user: null,
       overview: null,
       workspaces: [],
+      users: [],
       error: null,
     });
+  };
+
+  const createManagedUser = async (
+    email: string,
+    password: string,
+    role: User["role"],
+  ) => {
+    setState((current) => ({ ...current, loading: true, error: null }));
+
+    try {
+      await createUser(email, password, role);
+      await refresh();
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        loading: false,
+        error: error instanceof Error ? error.message : "User creation failed",
+      }));
+      throw error;
+    }
   };
 
   return {
@@ -92,6 +122,6 @@ export function usePortalData() {
     refresh,
     signIn,
     signOut,
+    createManagedUser,
   };
 }
-

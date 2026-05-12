@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/portal/backend/internal/auth"
@@ -19,6 +20,7 @@ type Store struct {
 type User struct {
 	ID        int64     `json:"id"`
 	Email     string    `json:"email"`
+	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -34,6 +36,12 @@ type Session struct {
 	Token     string
 	UserID    int64
 	ExpiresAt time.Time
+}
+
+type CreateUserInput struct {
+	Email    string
+	Password string
+	Role     string
 }
 
 func New(db *sql.DB) *Store {
@@ -61,6 +69,7 @@ func (s *Store) migrate() error {
 		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			email TEXT NOT NULL UNIQUE,
+			role TEXT NOT NULL DEFAULT 'user',
 			password_hash TEXT NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);`,
@@ -87,6 +96,14 @@ func (s *Store) migrate() error {
 		}
 	}
 
+	if _, err := s.db.Exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add user role: %w", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE users SET role = 'user' WHERE role IS NULL OR TRIM(role) = ''`); err != nil {
+		return fmt.Errorf("migrate backfill user role: %w", err)
+	}
+
 	return nil
 }
 
@@ -94,6 +111,9 @@ func (s *Store) ensureAdmin(email, password string) error {
 	var existingID int64
 	err := s.db.QueryRow(`SELECT id FROM users WHERE email = ? LIMIT 1`, email).Scan(&existingID)
 	if err == nil {
+		if _, updateErr := s.db.Exec(`UPDATE users SET role = 'admin' WHERE id = ?`, existingID); updateErr != nil {
+			return fmt.Errorf("promote admin: %w", updateErr)
+		}
 		return nil
 	}
 
@@ -107,7 +127,7 @@ func (s *Store) ensureAdmin(email, password string) error {
 	}
 
 	if _, err := s.db.Exec(
-		`INSERT INTO users (email, password_hash) VALUES (?, ?)`,
+		`INSERT INTO users (email, role, password_hash) VALUES (?, 'admin', ?)`,
 		email,
 		hashed,
 	); err != nil {
@@ -151,11 +171,12 @@ func (s *Store) seedDefaultWorkspaces() error {
 func (s *Store) AuthenticateUser(email, password string) (*User, error) {
 	var user User
 	var passwordHash string
+	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
 
 	err := s.db.QueryRow(
-		`SELECT id, email, password_hash, created_at FROM users WHERE email = ? LIMIT 1`,
-		email,
-	).Scan(&user.ID, &user.Email, &passwordHash, &user.CreatedAt)
+		`SELECT id, email, role, password_hash, created_at FROM users WHERE email = ? LIMIT 1`,
+		normalizedEmail,
+	).Scan(&user.ID, &user.Email, &user.Role, &passwordHash, &user.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -203,13 +224,13 @@ func (s *Store) GetUserBySessionToken(ctx context.Context, token string) (*User,
 
 	err := s.db.QueryRowContext(
 		ctx,
-		`SELECT u.id, u.email, u.created_at
+		`SELECT u.id, u.email, u.role, u.created_at
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
 		WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
 		LIMIT 1`,
 		token,
-	).Scan(&user.ID, &user.Email, &user.CreatedAt)
+	).Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +258,77 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	}
 
 	return workspaces, rows.Err()
+}
+
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, email, role, created_at FROM users ORDER BY role DESC, email ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]User, 0)
+	for rows.Next() {
+		var item User
+		if err := rows.Scan(&item.ID, &item.Email, &item.Role, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, item)
+	}
+
+	return users, rows.Err()
+}
+
+func (s *Store) CreateUser(ctx context.Context, input CreateUserInput) (*User, error) {
+	role := normalizeRole(input.Role)
+	hashedPassword, err := auth.HashPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	result, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO users (email, role, password_hash) VALUES (?, ?, ?)`,
+		strings.TrimSpace(strings.ToLower(input.Email)),
+		role,
+		hashedPassword,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetUserByID(ctx, id)
+}
+
+func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
+	var user User
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, email, role, created_at FROM users WHERE id = ? LIMIT 1`,
+		id,
+	).Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func normalizeRole(role string) string {
+	if strings.EqualFold(strings.TrimSpace(role), "admin") {
+		return "admin"
+	}
+
+	return "user"
 }
 
 func randomToken() (string, error) {
