@@ -1,5 +1,6 @@
 import {
   type FormEvent,
+  type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
@@ -34,8 +35,6 @@ type AppID = "chromium" | "terminal" | "settings";
 type DesktopApp = {
   id: AppID;
   label: string;
-  subtitle: string;
-  badge?: string;
   available: boolean;
 };
 
@@ -61,22 +60,16 @@ const apps: DesktopApp[] = [
   {
     id: "chromium",
     label: "Chromium",
-    subtitle: "Web workspace",
-    badge: "Live",
     available: true,
   },
   {
     id: "terminal",
     label: "Terminal",
-    subtitle: "Linux shell",
-    badge: "Shell",
     available: true,
   },
   {
     id: "settings",
     label: "Settings",
-    subtitle: "Access and system",
-    badge: "Admin",
     available: true,
   },
 ];
@@ -108,6 +101,51 @@ const initialWindows: WindowMap = {
   },
 };
 
+const DEFAULT_WALLPAPER = "gradient";
+
+const wallpaperPresets = [
+  {
+    id: "gradient",
+    label: "Aurora",
+    image: "",
+    overlay:
+      "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+  },
+  {
+    id: "dunes",
+    label: "Dunes",
+    image:
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    overlay:
+      "linear-gradient(180deg,rgba(15,23,42,0.35),rgba(2,6,23,0.78))",
+  },
+  {
+    id: "mountains",
+    label: "Mountains",
+    image:
+      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
+    overlay:
+      "linear-gradient(180deg,rgba(3,7,18,0.30),rgba(2,6,23,0.76))",
+  },
+  {
+    id: "sea",
+    label: "Sea",
+    image:
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
+    overlay:
+      "linear-gradient(180deg,rgba(8,47,73,0.26),rgba(2,6,23,0.78))",
+  },
+] as const;
+
+type WallpaperPresetId = (typeof wallpaperPresets)[number]["id"];
+
+type WallpaperState = {
+  mode: "preset" | "custom";
+  presetId: WallpaperPresetId;
+  image: string;
+  overlay: string;
+};
+
 function initials(label: string) {
   return label
     .split(" ")
@@ -115,6 +153,44 @@ function initials(label: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function renderAppIcon(appId: AppID) {
+  if (appId === "chromium") {
+    return (
+      <svg aria-hidden="true" className="h-9 w-9" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="21" fill="url(#chromium-ring)" />
+        <path d="M24 24L12 6a21 21 0 0 1 24 3H24Z" fill="#F59E0B" />
+        <path d="M24 24h21a21 21 0 0 1-10 18L24 24Z" fill="#22C55E" />
+        <path d="M24 24 13 42A21 21 0 0 1 12 6l12 18Z" fill="#EF4444" />
+        <circle cx="24" cy="24" r="9" fill="#60A5FA" stroke="#DBEAFE" strokeWidth="2" />
+        <defs>
+          <linearGradient id="chromium-ring" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#111827" />
+            <stop offset="1" stopColor="#1F2937" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  if (appId === "terminal") {
+    return (
+      <svg aria-hidden="true" className="h-9 w-9" viewBox="0 0 48 48" fill="none">
+        <rect x="7" y="9" width="34" height="30" rx="7" fill="#0F172A" stroke="#38BDF8" strokeWidth="2" />
+        <path d="m16 18 6 6-6 6" stroke="#E2E8F0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M25 30h8" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" className="h-9 w-9" viewBox="0 0 48 48" fill="none">
+      <rect x="8" y="8" width="32" height="32" rx="8" fill="#111827" stroke="#A78BFA" strokeWidth="2" />
+      <circle cx="24" cy="24" r="7" stroke="#E9D5FF" strokeWidth="2.5" />
+      <path d="M24 13v4M24 31v4M35 24h-4M17 24h-4M31.8 16.2l-2.8 2.8M19 29l-2.8 2.8M31.8 31.8 29 29M19 19l-2.8-2.8" stroke="#E9D5FF" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function windowTitle(appId: AppID) {
@@ -145,6 +221,15 @@ export function Dashboard({
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<User["role"]>("user");
+  const [customWallpaperUrl, setCustomWallpaperUrl] = useState("");
+  const [wallpaperError, setWallpaperError] = useState<string | null>(null);
+  const [wallpaper, setWallpaper] = useState<WallpaperState>(() => ({
+    mode: "preset",
+    presetId: DEFAULT_WALLPAPER,
+    image: "",
+    overlay:
+      "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+  }));
   const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
   const dragStateRef = useRef<DragState>(null);
   const nextZIndexRef = useRef(4);
@@ -154,6 +239,39 @@ export function Dashboard({
   }, [workspaces]);
   const isAdmin = user.role === "admin";
   const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
+  const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
+
+  const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
+    const preset = wallpaperPresets.find((item) => item.id === presetId);
+    if (!preset) {
+      return;
+    }
+
+    setWallpaper({
+      mode: "preset",
+      presetId: preset.id,
+      image: preset.image,
+      overlay: preset.overlay,
+    });
+    setCustomWallpaperUrl("");
+    setWallpaperError(null);
+  };
+
+  const applyCustomWallpaper = (image: string) => {
+    const normalized = image.trim();
+    if (!normalized) {
+      setWallpaperError("Enter an image URL or choose a file first.");
+      return;
+    }
+
+    setWallpaper({
+      mode: "custom",
+      presetId: DEFAULT_WALLPAPER,
+      image: normalized,
+      overlay: "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
+    });
+    setWallpaperError(null);
+  };
 
   const isAppOpen = (appId: AppID) => windows[appId].open;
   const isAppMinimized = (appId: AppID) => windows[appId].minimized;
@@ -286,6 +404,51 @@ export function Dashboard({
   };
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(wallpaperStorageKey);
+    if (!raw) {
+      applyPresetWallpaper(DEFAULT_WALLPAPER);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<WallpaperState>;
+      if (parsed.mode === "custom" && parsed.image) {
+        setWallpaper({
+          mode: "custom",
+          presetId: DEFAULT_WALLPAPER,
+          image: parsed.image,
+          overlay:
+            parsed.overlay ??
+            "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
+        });
+        setCustomWallpaperUrl(parsed.image);
+        return;
+      }
+
+      if (parsed.presetId) {
+        const preset = wallpaperPresets.find((item) => item.id === parsed.presetId);
+        if (preset) {
+          setWallpaper({
+            mode: "preset",
+            presetId: preset.id,
+            image: preset.image,
+            overlay: preset.overlay,
+          });
+          return;
+        }
+      }
+    } catch {
+      // Ignore invalid local storage and fall back to default wallpaper.
+    }
+
+    applyPresetWallpaper(DEFAULT_WALLPAPER);
+  }, [wallpaperStorageKey]);
+
+  useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -348,6 +511,18 @@ export function Dashboard({
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(wallpaperStorageKey, JSON.stringify(wallpaper));
+    } catch {
+      setWallpaperError("Wallpaper could not be saved locally. Try a smaller image.");
+    }
+  }, [wallpaper, wallpaperStorageKey]);
 
   const startDragging = (
     appId: AppID,
@@ -426,6 +601,126 @@ export function Dashboard({
     }
   };
 
+  const handleWallpaperUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setWallpaperError("That file could not be read as an image.");
+        return;
+      }
+
+      setCustomWallpaperUrl("");
+      applyCustomWallpaper(reader.result);
+    };
+    reader.onerror = () => {
+      setWallpaperError("That file could not be loaded.");
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const handleWallpaperUrlSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    applyCustomWallpaper(customWallpaperUrl);
+  };
+
+  const renderWallpaperSection = () => (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-muted">
+            Personalization
+          </p>
+          <h2 className="mt-2 text-xl font-medium text-ink">Wallpaper</h2>
+        </div>
+        <button
+          className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-muted transition hover:text-ink"
+          onClick={() => applyPresetWallpaper(DEFAULT_WALLPAPER)}
+          type="button"
+        >
+          Reset
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {wallpaperPresets.map((preset) => {
+          const isSelected =
+            wallpaper.mode === "preset" && wallpaper.presetId === preset.id;
+
+          return (
+            <button
+              key={preset.id}
+              className={`overflow-hidden rounded-2xl border text-left transition ${
+                isSelected
+                  ? "border-accent/45 bg-accent/10"
+                  : "border-white/10 bg-black/20 hover:border-white/20"
+              }`}
+              onClick={() => applyPresetWallpaper(preset.id)}
+              type="button"
+            >
+              <div
+                className="h-24 w-full"
+                style={{
+                  backgroundImage: preset.image
+                    ? `${preset.overlay}, url("${preset.image}")`
+                    : preset.overlay,
+                  backgroundPosition: "center",
+                  backgroundSize: "cover",
+                }}
+              />
+              <div className="px-3 py-2 text-sm text-ink">{preset.label}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <form className="mt-5 flex flex-col gap-3" onSubmit={handleWallpaperUrlSubmit}>
+        <label className="block">
+          <span className="mb-2 block text-sm text-muted">Image URL</span>
+          <input
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+            onChange={(event) => setCustomWallpaperUrl(event.target.value)}
+            placeholder="https://example.com/wallpaper.jpg"
+            type="url"
+            value={customWallpaperUrl}
+          />
+        </label>
+        <div className="flex flex-wrap gap-3">
+          <button
+            className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20"
+            type="submit"
+          >
+            Apply image URL
+          </button>
+          <label className="cursor-pointer rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-ink transition hover:bg-white/10">
+            Upload image
+            <input
+              accept="image/*"
+              className="hidden"
+              onChange={handleWallpaperUpload}
+              type="file"
+            />
+          </label>
+        </div>
+      </form>
+
+      <p className="mt-4 text-xs leading-5 text-muted">
+        Wallpapers are saved in this browser, so each device can keep its own desktop look.
+      </p>
+
+      {wallpaperError ? (
+        <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          {wallpaperError}
+        </div>
+      ) : null}
+    </section>
+  );
+
   const renderSettingsContent = () => (
     <div className="grid h-[calc(100%-32px)] grid-cols-[220px_1fr] bg-[#06080d]">
       <aside className="border-r border-white/10 bg-black/30 p-4">
@@ -448,8 +743,10 @@ export function Dashboard({
       </aside>
 
       <div className="overflow-auto p-5">
+        {renderWallpaperSection()}
+
         {isAdmin ? (
-          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -556,7 +853,7 @@ export function Dashboard({
             </section>
           </div>
         ) : (
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-5">
             <p className="text-xs uppercase tracking-[0.28em] text-muted">
               Access
             </p>
@@ -607,7 +904,16 @@ export function Dashboard({
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-ink">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.18),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))]" />
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: wallpaper.image
+            ? `${wallpaper.overlay}, url("${wallpaper.image}")`
+            : wallpaper.overlay,
+          backgroundPosition: "center",
+          backgroundSize: "cover",
+        }}
+      />
       <div className="absolute inset-0 bg-portal-grid bg-[length:52px_52px] opacity-[0.14]" />
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/6 to-transparent" />
 
@@ -656,29 +962,30 @@ export function Dashboard({
         </header>
 
         <div className="relative flex flex-1 flex-col px-5 py-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid auto-rows-max grid-cols-[repeat(auto-fit,minmax(88px,88px))] gap-x-5 gap-y-6 content-start justify-start">
             {apps.map((app) => (
               <button
                 key={app.id}
-                className={`group rounded-3xl border p-5 text-left backdrop-blur transition ${
+                className={`group flex w-[88px] flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition ${
                   app.available
-                    ? "border-white/10 bg-white/8 hover:border-accent/40 hover:bg-white/12"
-                    : "border-white/8 bg-black/20 opacity-85"
+                    ? "hover:bg-white/10 focus-visible:bg-white/10"
+                    : "opacity-50"
                 }`}
                 onClick={app.available ? () => void toggleApp(app.id) : undefined}
                 type="button"
               >
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/30 text-sm font-semibold tracking-[0.18em] text-ink">
-                    {initials(app.label)}
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.24em] text-muted">
-                    {app.badge ?? "App"}
-                  </span>
+                <div
+                  className={`flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-sm transition ${
+                    activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
+                      ? "border-accent/45 bg-accent/15 shadow-[0_0_22px_rgba(56,189,248,0.18)]"
+                      : "border-white/10 bg-black/25 group-hover:border-white/20 group-hover:bg-white/10"
+                  }`}
+                >
+                  {renderAppIcon(app.id)}
                 </div>
-
-                <h2 className="text-lg font-medium text-ink">{app.label}</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">{app.subtitle}</p>
+                <span className="max-w-full text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]">
+                  {app.label}
+                </span>
               </button>
             ))}
           </div>
