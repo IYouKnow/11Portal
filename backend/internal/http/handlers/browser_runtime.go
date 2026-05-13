@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -16,9 +17,10 @@ func NewBrowserRuntimeHandler(containerName string) *BrowserRuntimeHandler {
 }
 
 func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
-	if h.containerName == "" {
+	containerName, err := h.resolveContainerName()
+	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "chromium container control is not configured",
+			"error": err.Error(),
 		})
 	}
 
@@ -27,7 +29,7 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 		"exec",
 		"-u",
 		"abc",
-		h.containerName,
+		containerName,
 		"bash",
 		"-lc",
 		"pgrep -f '^/opt/ungoogledchromium/chrome ' >/dev/null || pgrep -f '^/bin/bash /usr/bin/wrapped-chromium' >/dev/null",
@@ -45,7 +47,7 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 		"exec",
 		"-u",
 		"abc",
-		h.containerName,
+		containerName,
 		"bash",
 		"-lc",
 		"pkill -f '^/bin/bash /usr/bin/wrapped-chromium' || true",
@@ -63,7 +65,7 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 		"-d",
 		"-u",
 		"abc",
-		h.containerName,
+		containerName,
 		"bash",
 		"-lc",
 		"LOCK=/tmp/portal-chromium-open.lock; "+
@@ -94,9 +96,10 @@ func (h *BrowserRuntimeHandler) Open(c *fiber.Ctx) error {
 }
 
 func (h *BrowserRuntimeHandler) Close(c *fiber.Ctx) error {
-	if h.containerName == "" {
+	containerName, err := h.resolveContainerName()
+	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "chromium container control is not configured",
+			"error": err.Error(),
 		})
 	}
 
@@ -105,7 +108,7 @@ func (h *BrowserRuntimeHandler) Close(c *fiber.Ctx) error {
 		"exec",
 		"-u",
 		"abc",
-		h.containerName,
+		containerName,
 		"bash",
 		"-lc",
 		"pkill -f '^/bin/bash /usr/bin/wrapped-chromium' >/dev/null 2>&1 || true; "+
@@ -123,4 +126,54 @@ func (h *BrowserRuntimeHandler) Close(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"ok": true,
 	})
+}
+
+func (h *BrowserRuntimeHandler) resolveContainerName() (string, error) {
+	configured := strings.TrimSpace(h.containerName)
+	if configured == "" {
+		return "", fmt.Errorf("chromium container control is not configured")
+	}
+
+	if containerExists(configured) {
+		return configured, nil
+	}
+
+	composeMatch, err := firstDockerPSMatch(
+		"--filter", "label=com.docker.compose.service=chromium",
+	)
+	if err == nil && composeMatch != "" {
+		return composeMatch, nil
+	}
+
+	nameMatch, err := firstDockerPSMatch(
+		"--filter", "name="+configured,
+	)
+	if err == nil && nameMatch != "" {
+		return nameMatch, nil
+	}
+
+	return "", fmt.Errorf("chromium container not found (configured as %q)", configured)
+}
+
+func containerExists(name string) bool {
+	cmd := exec.Command("docker", "inspect", name)
+	return cmd.Run() == nil
+}
+
+func firstDockerPSMatch(args ...string) (string, error) {
+	baseArgs := []string{"ps", "--format", "{{.Names}}"}
+	cmd := exec.Command("docker", append(baseArgs, args...)...)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	for _, line := range strings.Split(string(output), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			return trimmed, nil
+		}
+	}
+
+	return "", nil
 }

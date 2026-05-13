@@ -29,13 +29,33 @@ type DashboardProps = {
   ) => Promise<void>;
 };
 
+type AppID = "chromium" | "terminal" | "settings";
+
 type DesktopApp = {
-  id: string;
+  id: AppID;
   label: string;
   subtitle: string;
   badge?: string;
   available: boolean;
 };
+
+type WindowState = {
+  open: boolean;
+  minimized: boolean;
+  maximized: boolean;
+  position: { x: number; y: number };
+  lastFloatingPosition: { x: number; y: number };
+  zIndex: number;
+};
+
+type WindowMap = Record<AppID, WindowState>;
+
+type DragState = {
+  appId: AppID;
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+} | null;
 
 const apps: DesktopApp[] = [
   {
@@ -52,7 +72,41 @@ const apps: DesktopApp[] = [
     badge: "Shell",
     available: true,
   },
+  {
+    id: "settings",
+    label: "Settings",
+    subtitle: "Access and system",
+    badge: "Admin",
+    available: true,
+  },
 ];
+
+const initialWindows: WindowMap = {
+  chromium: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    position: { x: 24, y: 96 },
+    lastFloatingPosition: { x: 24, y: 96 },
+    zIndex: 1,
+  },
+  terminal: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    position: { x: 72, y: 136 },
+    lastFloatingPosition: { x: 72, y: 136 },
+    zIndex: 1,
+  },
+  settings: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    position: { x: 128, y: 112 },
+    lastFloatingPosition: { x: 128, y: 112 },
+    zIndex: 1,
+  },
+};
 
 function initials(label: string) {
   return label
@@ -61,6 +115,16 @@ function initials(label: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function windowTitle(appId: AppID) {
+  if (appId === "chromium") {
+    return "Chromium";
+  }
+  if (appId === "terminal") {
+    return "Terminal";
+  }
+  return "Settings";
 }
 
 export function Dashboard({
@@ -73,144 +137,155 @@ export function Dashboard({
   onLogout,
   onCreateUser,
 }: DashboardProps) {
-  const [activeApp, setActiveApp] = useState<string | null>(null);
-  const [isChromiumOpen, setIsChromiumOpen] = useState(false);
-  const [isChromiumMinimized, setIsChromiumMinimized] = useState(false);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [isTerminalMinimized, setIsTerminalMinimized] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const [activeApp, setActiveApp] = useState<AppID | null>(null);
+  const [windows, setWindows] = useState<WindowMap>(initialWindows);
   const [isBusy, setIsBusy] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const [windowPosition, setWindowPosition] = useState({ x: 20, y: 96 });
-  const [isMaximized, setIsMaximized] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<User["role"]>("user");
-  const windowRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{
-    pointerId: number;
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
-  const positionRef = useRef(windowPosition);
-  const lastFloatingPositionRef = useRef(windowPosition);
-  const frameRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    positionRef.current = windowPosition;
-    if (windowRef.current) {
-      windowRef.current.style.left = `${windowPosition.x}px`;
-      windowRef.current.style.top = `${windowPosition.y}px`;
-    }
-  }, [windowPosition]);
+  const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
+  const dragStateRef = useRef<DragState>(null);
+  const nextZIndexRef = useRef(4);
 
   const activeWorkspace = useMemo(() => {
     return workspaces[0]?.name ?? "Primary Workspace";
   }, [workspaces]);
   const isAdmin = user.role === "admin";
-
   const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
 
-  const isAppOpen = (appId: string) =>
-    appId === "chromium" ? isChromiumOpen : isTerminalOpen;
+  const isAppOpen = (appId: AppID) => windows[appId].open;
+  const isAppMinimized = (appId: AppID) => windows[appId].minimized;
 
-  const isAppMinimized = (appId: string) =>
-    appId === "chromium" ? isChromiumMinimized : isTerminalMinimized;
-
-  const toggleApp = async (appId: string) => {
-    if (isBusy) {
-      return;
-    }
-
-    if (!isAppOpen(appId)) {
-      if (appId === "chromium") {
-        setIframeKey((value) => value + 1);
-        setIsChromiumOpen(true);
-        setIsChromiumMinimized(false);
-      } else {
-        setIsTerminalOpen(true);
-        setIsTerminalMinimized(false);
-      }
-      setActiveApp(appId);
-      return;
-    }
-
-    if (isAppMinimized(appId)) {
-      if (appId === "chromium") {
-        setIsChromiumMinimized(false);
-      } else {
-        setIsTerminalMinimized(false);
-      }
-      setActiveApp(appId);
-      return;
-    }
-
-    if (activeApp === appId) {
-      if (appId === "chromium") {
-        setIsChromiumMinimized(true);
-      } else {
-        setIsTerminalMinimized(true);
-      }
-      setActiveApp(null);
-      return;
-    }
-
+  const focusApp = (appId: AppID) => {
+    setWindows((current) => ({
+      ...current,
+      [appId]: {
+        ...current[appId],
+        zIndex: nextZIndexRef.current++,
+      },
+    }));
     setActiveApp(appId);
   };
 
-  const closeWindow = async () => {
+  const openApp = (appId: AppID) => {
+    if (appId === "chromium") {
+      setIframeKey((value) => value + 1);
+    }
+
+    setWindows((current) => ({
+      ...current,
+      [appId]: {
+        ...current[appId],
+        open: true,
+        minimized: false,
+        zIndex: nextZIndexRef.current++,
+      },
+    }));
+    setActiveApp(appId);
+  };
+
+  const restoreApp = (appId: AppID) => {
+    setWindows((current) => ({
+      ...current,
+      [appId]: {
+        ...current[appId],
+        minimized: false,
+        zIndex: nextZIndexRef.current++,
+      },
+    }));
+    setActiveApp(appId);
+  };
+
+  const minimizeApp = (appId: AppID) => {
+    setWindows((current) => ({
+      ...current,
+      [appId]: {
+        ...current[appId],
+        minimized: true,
+      },
+    }));
+    setActiveApp((current) => (current === appId ? null : current));
+  };
+
+  const closeApp = async (appId: AppID) => {
     if (isBusy) {
       return;
     }
 
     setIsBusy(true);
     try {
-      if (activeApp === "chromium") {
+      if (appId === "chromium") {
         await closeBrowserRuntime();
-        setIsChromiumOpen(false);
-        setIsChromiumMinimized(false);
-      } else if (activeApp === "terminal") {
-        setIsTerminalOpen(false);
-        setIsTerminalMinimized(false);
       }
-      setActiveApp(null);
+
+      setWindows((current) => ({
+        ...current,
+        [appId]: {
+          ...current[appId],
+          open: false,
+          minimized: false,
+          maximized: false,
+          position: current[appId].lastFloatingPosition,
+        },
+      }));
+      setActiveApp((current) => (current === appId ? null : current));
     } finally {
       setIsBusy(false);
     }
   };
 
-  const minimizeWindow = () => {
-    if (!activeApp || !isAppOpen(activeApp) || isAppMinimized(activeApp)) {
+  const toggleApp = async (appId: AppID) => {
+    if (isBusy) {
       return;
     }
 
-    if (activeApp === "chromium") {
-      setIsChromiumMinimized(true);
-    } else if (activeApp === "terminal") {
-      setIsTerminalMinimized(true);
+    if (!isAppOpen(appId)) {
+      openApp(appId);
+      return;
     }
-    setActiveApp(null);
+
+    if (isAppMinimized(appId)) {
+      restoreApp(appId);
+      return;
+    }
+
+    if (activeApp === appId) {
+      minimizeApp(appId);
+      return;
+    }
+
+    focusApp(appId);
   };
 
-  const toggleMaximize = () => {
-    if (isMaximized) {
-      setIsMaximized(false);
-      setWindowPosition(lastFloatingPositionRef.current);
-      positionRef.current = lastFloatingPositionRef.current;
-      return;
-    }
+  const toggleMaximize = (appId: AppID) => {
+    setWindows((current) => {
+      const nextWindow = current[appId];
+      if (nextWindow.maximized) {
+        return {
+          ...current,
+          [appId]: {
+            ...nextWindow,
+            maximized: false,
+            position: nextWindow.lastFloatingPosition,
+          },
+        };
+      }
 
-    lastFloatingPositionRef.current = positionRef.current;
-    setIsMaximized(true);
+      return {
+        ...current,
+        [appId]: {
+          ...nextWindow,
+          maximized: true,
+          lastFloatingPosition: nextWindow.position,
+        },
+      };
+    });
+    focusApp(appId);
   };
 
   useEffect(() => {
-    if (!activeApp || isAppMinimized(activeApp) || !isAppOpen(activeApp)) {
-      return;
-    }
-
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -219,43 +294,48 @@ export function Dashboard({
 
       if ((event.buttons & 1) !== 1) {
         dragStateRef.current = null;
-        setIsDragging(false);
+        setDraggingApp(null);
         return;
       }
 
-      if (isMaximized) {
-        return;
-      }
+      setWindows((current) => {
+        const targetWindow = current[dragState.appId];
+        if (targetWindow.maximized) {
+          return current;
+        }
 
-      const width = Math.min(window.innerWidth * 0.78, 980);
-      const height = Math.min(window.innerHeight * 0.7, 720);
-      const nextX = event.clientX - dragState.offsetX;
-      const nextY = event.clientY - dragState.offsetY;
+        const width = Math.min(window.innerWidth * 0.78, 980);
+        const nextX = event.clientX - dragState.offsetX;
+        const nextY = event.clientY - dragState.offsetY;
 
-      const nextPosition = {
-        x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
-        y: Math.max(-28, Math.min(nextY, window.innerHeight - 48)),
-      };
-
-      positionRef.current = nextPosition;
-      if (frameRef.current == null) {
-        frameRef.current = window.requestAnimationFrame(() => {
-          frameRef.current = null;
-          if (windowRef.current) {
-            windowRef.current.style.left = `${positionRef.current.x}px`;
-            windowRef.current.style.top = `${positionRef.current.y}px`;
-          }
-        });
-      }
+        return {
+          ...current,
+          [dragState.appId]: {
+            ...targetWindow,
+            position: {
+              x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
+              y: Math.max(-28, Math.min(nextY, window.innerHeight - 48)),
+            },
+          },
+        };
+      });
     };
 
     const handlePointerEnd = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
-      if (dragState && dragState.pointerId === event.pointerId) {
-        dragStateRef.current = null;
-        setIsDragging(false);
-        setWindowPosition(positionRef.current);
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
       }
+
+      dragStateRef.current = null;
+      setDraggingApp(null);
+      setWindows((current) => ({
+        ...current,
+        [dragState.appId]: {
+          ...current[dragState.appId],
+          lastFloatingPosition: current[dragState.appId].position,
+        },
+      }));
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -263,35 +343,29 @@ export function Dashboard({
     window.addEventListener("pointercancel", handlePointerEnd);
 
     return () => {
-      if (frameRef.current != null) {
-        window.cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
-      }
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [
-    activeApp,
-    isChromiumMinimized,
-    isChromiumOpen,
-    isMaximized,
-    isTerminalMinimized,
-    isTerminalOpen,
-  ]);
+  }, []);
 
-  const startDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const startDragging = (
+    appId: AppID,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
     if (event.button !== 0) {
       return;
     }
 
     event.preventDefault();
+    focusApp(appId);
 
-    let nextPosition = windowPosition;
-    let offsetX = event.clientX - windowPosition.x;
-    let offsetY = event.clientY - windowPosition.y;
+    const appWindow = windows[appId];
+    let nextPosition = appWindow.position;
+    let offsetX = event.clientX - appWindow.position.x;
+    let offsetY = event.clientY - appWindow.position.y;
 
-    if (isMaximized) {
+    if (appWindow.maximized) {
       const restoredWidth = Math.min(window.innerWidth * 0.78, 980);
       const pointerRatio =
         window.innerWidth > 0 ? event.clientX / window.innerWidth : 0.5;
@@ -308,31 +382,34 @@ export function Dashboard({
         y: Math.max(-28, Math.min(event.clientY - 16, window.innerHeight - 48)),
       };
 
-      setIsMaximized(false);
-      setWindowPosition(nextPosition);
-      positionRef.current = nextPosition;
+      setWindows((current) => ({
+        ...current,
+        [appId]: {
+          ...current[appId],
+          maximized: false,
+          position: nextPosition,
+          lastFloatingPosition: nextPosition,
+        },
+      }));
 
       offsetX = event.clientX - nextPosition.x;
       offsetY = event.clientY - nextPosition.y;
     }
 
     dragStateRef.current = {
+      appId,
       pointerId: event.pointerId,
       offsetX,
       offsetY,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
-    setIsDragging(true);
+    setDraggingApp(appId);
   };
 
   const stopWindowControlPointer = (
     event: ReactPointerEvent<HTMLButtonElement>,
   ) => {
     event.stopPropagation();
-  };
-
-  const handleTitleBarDoubleClick = () => {
-    toggleMaximize();
   };
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
@@ -348,6 +425,185 @@ export function Dashboard({
       setIsCreatingUser(false);
     }
   };
+
+  const renderSettingsContent = () => (
+    <div className="grid h-[calc(100%-32px)] grid-cols-[220px_1fr] bg-[#06080d]">
+      <aside className="border-r border-white/10 bg-black/30 p-4">
+        <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
+          Settings
+        </p>
+        <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4">
+          <p className="text-sm font-medium text-ink">Access control</p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Manage who can enter Portal and which role they receive.
+          </p>
+        </div>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-muted">
+            Signed in
+          </p>
+          <p className="mt-2 text-sm text-ink">{user.email}</p>
+          <p className="mt-1 text-xs text-muted">Role: {user.role}</p>
+        </div>
+      </aside>
+
+      <div className="overflow-auto p-5">
+        {isAdmin ? (
+          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-muted">
+                    Access
+                  </p>
+                  <h2 className="mt-2 text-xl font-medium text-ink">
+                    Team users
+                  </h2>
+                </div>
+                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-muted">
+                  {users.length} accounts
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {users.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ink">
+                        {account.email}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Created {new Date(account.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
+                        account.role === "admin"
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-sky-500/15 text-sky-200"
+                      }`}
+                    >
+                      {account.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted">
+                Admin only
+              </p>
+              <h2 className="mt-2 text-xl font-medium text-ink">
+                Create account
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Registration is disabled publicly. Create credentials here and
+                pass them to the user directly.
+              </p>
+
+              <form className="mt-5 space-y-4" onSubmit={handleCreateUser}>
+                <label className="block">
+                  <span className="mb-2 block text-sm text-muted">Email</span>
+                  <input
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    onChange={(event) => setNewUserEmail(event.target.value)}
+                    required
+                    type="email"
+                    value={newUserEmail}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm text-muted">
+                    Temporary password
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    minLength={10}
+                    onChange={(event) => setNewUserPassword(event.target.value)}
+                    required
+                    type="password"
+                    value={newUserPassword}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm text-muted">Role</span>
+                  <select
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    onChange={(event) =>
+                      setNewUserRole(event.target.value as User["role"])
+                    }
+                    value={newUserRole}
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+
+                <button
+                  className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={isCreatingUser}
+                  type="submit"
+                >
+                  {isCreatingUser ? "Creating account..." : "Create account"}
+                </button>
+              </form>
+            </section>
+          </div>
+        ) : (
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-xs uppercase tracking-[0.28em] text-muted">
+              Access
+            </p>
+            <h2 className="mt-2 text-xl font-medium text-ink">
+              User account
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Your account can access the Portal workspace. Admin accounts can
+              create and manage other users from this settings app.
+            </p>
+          </section>
+        )}
+
+        {error ? (
+          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {error}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  const renderWindowContent = (appId: AppID) => {
+    if (appId === "chromium") {
+      return (
+        <iframe
+          key={iframeKey}
+          className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
+            draggingApp === "chromium" ? "pointer-events-none" : ""
+          }`}
+          loading="lazy"
+          src={chromiumSrc}
+          title="Portal Chromium"
+        />
+      );
+    }
+
+    if (appId === "terminal") {
+      return <TerminalPanel active={windows.terminal.open && !windows.terminal.minimized} />;
+    }
+
+    return renderSettingsContent();
+  };
+
+  const visibleApps = apps
+    .filter((app) => windows[app.id].open && !windows[app.id].minimized)
+    .sort((left, right) => windows[left.id].zIndex - windows[right.id].zIndex);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-ink">
@@ -427,124 +683,6 @@ export function Dashboard({
             ))}
           </div>
 
-          {isAdmin ? (
-            <section className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-muted">
-                      Access
-                    </p>
-                    <h2 className="mt-2 text-xl font-medium text-ink">Team users</h2>
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted">
-                    {users.length} accounts
-                  </span>
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  {users.map((account) => (
-                    <div
-                      key={account.id}
-                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-ink">{account.email}</p>
-                        <p className="mt-1 text-xs text-muted">
-                          Created {new Date(account.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
-                          account.role === "admin"
-                            ? "bg-emerald-500/15 text-emerald-200"
-                            : "bg-sky-500/15 text-sky-200"
-                        }`}
-                      >
-                        {account.role}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <section className="rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.28em] text-muted">
-                  Admin only
-                </p>
-                <h2 className="mt-2 text-xl font-medium text-ink">Create account</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Registration is disabled publicly. Admins create credentials here
-                  and share them directly with the user.
-                </p>
-
-                <form className="mt-5 space-y-4" onSubmit={handleCreateUser}>
-                  <label className="block">
-                    <span className="mb-2 block text-sm text-muted">Email</span>
-                    <input
-                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                      onChange={(event) => setNewUserEmail(event.target.value)}
-                      required
-                      type="email"
-                      value={newUserEmail}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-sm text-muted">
-                      Temporary password
-                    </span>
-                    <input
-                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                      minLength={10}
-                      onChange={(event) => setNewUserPassword(event.target.value)}
-                      required
-                      type="password"
-                      value={newUserPassword}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-sm text-muted">Role</span>
-                    <select
-                      className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                      onChange={(event) =>
-                        setNewUserRole(event.target.value as User["role"])
-                      }
-                      value={newUserRole}
-                    >
-                      <option value="user">User</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </label>
-
-                  <button
-                    className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-70"
-                    disabled={isCreatingUser}
-                    type="submit"
-                  >
-                    {isCreatingUser ? "Creating account..." : "Create account"}
-                  </button>
-                </form>
-              </section>
-            </section>
-          ) : (
-            <section className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
-              <p className="text-xs uppercase tracking-[0.28em] text-muted">Access</p>
-              <h2 className="mt-2 text-xl font-medium text-ink">Signed in as user</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Your account can access the Portal workspace. Admin accounts can
-                also manage other users from this dashboard.
-              </p>
-            </section>
-          )}
-
-          {error ? (
-            <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
-          ) : null}
-
           <div className="pointer-events-none mt-auto flex justify-center pt-8">
             <div className="pointer-events-auto flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
               {apps.map((app) => (
@@ -565,7 +703,9 @@ export function Dashboard({
                     isAppOpen(app.id)
                       ? isAppMinimized(app.id)
                         ? `Restore ${app.label}`
-                        : `Minimize ${app.label}`
+                        : activeApp === app.id
+                          ? `Minimize ${app.label}`
+                          : `Focus ${app.label}`
                       : `Open ${app.label}`
                   }
                   type="button"
@@ -576,146 +716,118 @@ export function Dashboard({
                   ) : null}
                 </button>
               ))}
-              <div className="mx-1 h-8 w-px bg-white/10" />
-              <button
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg transition ${
-                  isSettingsOpen
-                    ? "border-accent/40 bg-accent/15 text-accent"
-                    : "border-white/10 bg-white/5 text-ink hover:bg-white/10"
-                }`}
-                onClick={() => setIsSettingsOpen((value) => !value)}
-                title="Dock settings"
-                type="button"
-              >
-                ?
-              </button>
             </div>
           </div>
-
-          {isSettingsOpen ? (
-            <div className="pointer-events-auto absolute bottom-28 left-1/2 z-40 w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/70 p-4 backdrop-blur-xl">
-              <h3 className="text-sm font-medium text-ink">Dock Settings</h3>
-              <p className="mt-2 text-xs leading-5 text-muted">
-                Chromium and Terminal support minimize-to-dock. Click an app icon
-                to minimize, then click again to restore without losing session
-                state.
-              </p>
-            </div>
-          ) : null}
         </div>
 
-        {activeApp && isAppOpen(activeApp) && !isAppMinimized(activeApp) ? (
-          <div
-            ref={windowRef}
-            className={`absolute z-30 ${
-              isMaximized
-                ? "inset-0 h-screen w-screen"
-                : "h-[min(70vh,720px)] w-[min(78vw,980px)]"
-            }`}
-            style={{
-              left: isMaximized ? undefined : `${windowPosition.x}px`,
-              top: isMaximized ? undefined : `${windowPosition.y}px`,
-            }}
-          >
+        {visibleApps.map((app) => {
+          const appWindow = windows[app.id];
+
+          return (
             <div
-              className={`h-full overflow-hidden border border-white/10 bg-[#07090d] shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
-                isMaximized ? "rounded-none" : "rounded-2xl"
+              key={app.id}
+              className={`absolute ${
+                appWindow.maximized
+                  ? "inset-0 h-screen w-screen"
+                  : "h-[min(70vh,720px)] w-[min(78vw,980px)]"
               }`}
+              onMouseDown={() => focusApp(app.id)}
+              style={{
+                zIndex: 20 + appWindow.zIndex,
+                left: appWindow.maximized ? undefined : `${appWindow.position.x}px`,
+                top: appWindow.maximized ? undefined : `${appWindow.position.y}px`,
+              }}
             >
               <div
-                className="flex h-8 select-none items-center justify-between border-b border-white/10 bg-black/45 px-3"
-                onDoubleClick={handleTitleBarDoubleClick}
-                onPointerDown={startDragging}
+                className={`h-full overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
+                  activeApp === app.id
+                    ? "border-accent/30 bg-[#07090d]"
+                    : "border-white/10 bg-[#07090d]/95"
+                } ${appWindow.maximized ? "rounded-none" : "rounded-2xl"}`}
               >
-                <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
-                  {activeApp === "chromium" ? "Chromium" : "Terminal"}
+                <div
+                  className="flex h-8 select-none items-center justify-between border-b border-white/10 bg-black/45 px-3"
+                  onDoubleClick={() => toggleMaximize(app.id)}
+                  onPointerDown={(event) => startDragging(app.id, event)}
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
+                    {windowTitle(app.id)}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
+                      onClick={() => minimizeApp(app.id)}
+                      onPointerDown={stopWindowControlPointer}
+                      type="button"
+                    >
+                      -
+                    </button>
+                    <button
+                      className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
+                      onClick={() => toggleMaximize(app.id)}
+                      onPointerDown={stopWindowControlPointer}
+                      type="button"
+                    >
+                      {appWindow.maximized ? (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3 w-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <rect
+                            height="11"
+                            rx="1.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            width="11"
+                            x="5"
+                            y="8"
+                          />
+                          <path
+                            d="M9 8V5h10v10h-3"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3 w-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <rect
+                            height="14"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            width="14"
+                            x="5"
+                            y="5"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
+                      onClick={() => void closeApp(app.id)}
+                      onPointerDown={stopWindowControlPointer}
+                      type="button"
+                    >
+                      x
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
-                    onClick={minimizeWindow}
-                    onPointerDown={stopWindowControlPointer}
-                    type="button"
-                  >
-                    -
-                  </button>
-                  <button
-                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
-                    onClick={toggleMaximize}
-                    onPointerDown={stopWindowControlPointer}
-                    type="button"
-                  >
-                    {isMaximized ? (
-                      <svg
-                        aria-hidden="true"
-                        className="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect
-                          height="11"
-                          rx="1.5"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          width="11"
-                          x="5"
-                          y="8"
-                        />
-                        <path
-                          d="M9 8V5h10v10h-3"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="1.8"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        aria-hidden="true"
-                        className="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect
-                          height="14"
-                          rx="2"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          width="14"
-                          x="5"
-                          y="5"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
-                    onClick={() => void closeWindow()}
-                    onPointerDown={stopWindowControlPointer}
-                    type="button"
-                  >
-                    x
-                  </button>
-                </div>
+                {renderWindowContent(app.id)}
               </div>
-
-              {activeApp === "chromium" ? (
-                <iframe
-                  key={iframeKey}
-                  className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
-                    isDragging ? "pointer-events-none" : ""
-                  }`}
-                  loading="lazy"
-                  src={chromiumSrc}
-                  title="Portal Chromium"
-                />
-              ) : (
-                <TerminalPanel active={isTerminalOpen} />
-              )}
             </div>
-          </div>
-        ) : null}
+          );
+        })}
       </div>
     </main>
   );
