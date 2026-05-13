@@ -33,16 +33,25 @@ func (h *SystemHandler) Overview(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"platform": fiber.Map{
-			"name":           "Portal",
-			"publicURL":      h.cfg.PublicURL,
-			"workspacesRoot": h.cfg.WorkspacesRoot,
-			"runtime":        runtime.GOOS + "/" + runtime.GOARCH,
-			"chromiumURL":    h.cfg.ChromiumPublicURL,
+			"name":              "Portal",
+			"publicURL":         h.cfg.PublicURL,
+			"workspacesRoot":    h.cfg.WorkspacesRoot,
+			"runtime":           runtime.GOOS + "/" + runtime.GOARCH,
+			"chromiumURL":       h.cfg.ChromiumPublicURL,
+			"remoteDesktopURL":  h.cfg.RemoteDesktopPublicURL,
 		},
 		"stats": fiber.Map{
 			"workspaceCount": len(workspaces),
 			"terminalStatus": "ready",
-			"remoteDesktop":  "planned",
+			"remoteDesktop":  remoteDesktopStatus(h.cfg.RemoteDesktopPublicURL),
 		},
 	})
+}
+
+func remoteDesktopStatus(publicURL string) string {
+	if publicURL == "" {
+		return "planned"
+	}
+
+	return "ready"
 }

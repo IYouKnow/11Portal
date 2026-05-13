@@ -128,6 +128,21 @@ PORTAL_CHROMIUM_PUBLIC_URL=https://chromium.example.com/chromium
 `PORTAL_CHROMIUM_URL` is still accepted as a compatibility fallback, but new
 deployments should prefer the explicit internal/public variables above.
 
+## Remote Desktop App
+
+Portal includes a `Remote Desktop` desktop app that can embed a browser-based
+RDP gateway inside a native-looking window.
+
+Set this to enable it:
+
+```env
+PORTAL_REMOTE_DESKTOP_PUBLIC_URL=https://rdp.example.com/
+```
+
+When configured, the frontend will load that URL in the app window. This works
+best with a browser-native gateway such as Apache Guacamole or a similar
+service that supports iframe-friendly embedding and RDP sessions in the browser.
+
 ## API Overview
 
 - `GET /api/v1/health`

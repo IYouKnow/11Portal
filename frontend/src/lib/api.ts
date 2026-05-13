@@ -20,6 +20,7 @@ export type Overview = {
     workspacesRoot: string;
     runtime: string;
     chromiumURL: string;
+    remoteDesktopURL: string;
   };
   stats: {
     workspaceCount: number;

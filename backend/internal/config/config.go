@@ -21,6 +21,7 @@ type Config struct {
 	ChromiumContainer   string
 	ChromiumInternalURL string
 	ChromiumPublicURL   string
+	RemoteDesktopPublicURL string
 	TerminalIdleMinutes int
 	WebRoot             string
 }
@@ -53,6 +54,7 @@ func Load() Config {
 		ChromiumContainer:   envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
 		ChromiumInternalURL: chromiumInternalURL,
 		ChromiumPublicURL:   chromiumPublicURL,
+		RemoteDesktopPublicURL: envOrDefault("PORTAL_REMOTE_DESKTOP_PUBLIC_URL", ""),
 		TerminalIdleMinutes: envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
 		WebRoot:             envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
 	}
