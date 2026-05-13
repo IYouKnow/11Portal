@@ -42,12 +42,21 @@ type WindowState = {
   open: boolean;
   minimized: boolean;
   maximized: boolean;
+  snapped: SnapMode | null;
   position: { x: number; y: number };
   lastFloatingPosition: { x: number; y: number };
   zIndex: number;
 };
 
 type WindowMap = Record<AppID, WindowState>;
+
+type SnapMode =
+  | "left"
+  | "right"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
 
 type DragState = {
   appId: AppID;
@@ -79,6 +88,7 @@ const initialWindows: WindowMap = {
     open: false,
     minimized: false,
     maximized: false,
+    snapped: null,
     position: { x: 24, y: 96 },
     lastFloatingPosition: { x: 24, y: 96 },
     zIndex: 1,
@@ -87,6 +97,7 @@ const initialWindows: WindowMap = {
     open: false,
     minimized: false,
     maximized: false,
+    snapped: null,
     position: { x: 72, y: 136 },
     lastFloatingPosition: { x: 72, y: 136 },
     zIndex: 1,
@@ -95,6 +106,7 @@ const initialWindows: WindowMap = {
     open: false,
     minimized: false,
     maximized: false,
+    snapped: null,
     position: { x: 128, y: 112 },
     lastFloatingPosition: { x: 128, y: 112 },
     zIndex: 1,
@@ -102,6 +114,9 @@ const initialWindows: WindowMap = {
 };
 
 const DEFAULT_WALLPAPER = "gradient";
+const CUSTOM_WALLPAPER_STORAGE_MARKER = "__portal_custom_wallpaper__";
+const WALLPAPER_DB_NAME = "portal-wallpapers";
+const WALLPAPER_STORE_NAME = "wallpapers";
 
 const wallpaperPresets = [
   {
@@ -146,6 +161,95 @@ type WallpaperState = {
   overlay: string;
 };
 
+function openWallpaperDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(WALLPAPER_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(WALLPAPER_STORE_NAME)) {
+        database.createObjectStore(WALLPAPER_STORE_NAME);
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onerror = () => {
+      reject(request.error ?? new Error("Could not open wallpaper storage."));
+    };
+  });
+}
+
+function readWallpaperImage(storageKey: string): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    openWallpaperDatabase()
+      .then((database) => {
+        const transaction = database.transaction(WALLPAPER_STORE_NAME, "readonly");
+        const store = transaction.objectStore(WALLPAPER_STORE_NAME);
+        const request = store.get(storageKey);
+
+        request.onsuccess = () => {
+          resolve(typeof request.result === "string" ? request.result : null);
+        };
+        request.onerror = () => {
+          reject(request.error ?? new Error("Could not read wallpaper image."));
+        };
+        transaction.oncomplete = () => {
+          database.close();
+        };
+      })
+      .catch(reject);
+  });
+}
+
+function writeWallpaperImage(storageKey: string, image: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    openWallpaperDatabase()
+      .then((database) => {
+        const transaction = database.transaction(WALLPAPER_STORE_NAME, "readwrite");
+        const store = transaction.objectStore(WALLPAPER_STORE_NAME);
+        const request = store.put(image, storageKey);
+
+        request.onerror = () => {
+          reject(request.error ?? new Error("Could not save wallpaper image."));
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve();
+        };
+        transaction.onerror = () => {
+          reject(transaction.error ?? new Error("Could not save wallpaper image."));
+        };
+      })
+      .catch(reject);
+  });
+}
+
+function deleteWallpaperImage(storageKey: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    openWallpaperDatabase()
+      .then((database) => {
+        const transaction = database.transaction(WALLPAPER_STORE_NAME, "readwrite");
+        const store = transaction.objectStore(WALLPAPER_STORE_NAME);
+        const request = store.delete(storageKey);
+
+        request.onerror = () => {
+          reject(request.error ?? new Error("Could not clear wallpaper image."));
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve();
+        };
+        transaction.onerror = () => {
+          reject(transaction.error ?? new Error("Could not clear wallpaper image."));
+        };
+      })
+      .catch(reject);
+  });
+}
+
 function initials(label: string) {
   return label
     .split(" ")
@@ -159,17 +263,39 @@ function renderAppIcon(appId: AppID) {
   if (appId === "chromium") {
     return (
       <svg aria-hidden="true" className="h-9 w-9" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="21" fill="url(#chromium-ring)" />
-        <path d="M24 24L12 6a21 21 0 0 1 24 3H24Z" fill="#F59E0B" />
-        <path d="M24 24h21a21 21 0 0 1-10 18L24 24Z" fill="#22C55E" />
-        <path d="M24 24 13 42A21 21 0 0 1 12 6l12 18Z" fill="#EF4444" />
-        <circle cx="24" cy="24" r="9" fill="#60A5FA" stroke="#DBEAFE" strokeWidth="2" />
-        <defs>
-          <linearGradient id="chromium-ring" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#111827" />
-            <stop offset="1" stopColor="#1F2937" />
-          </linearGradient>
-        </defs>
+        <rect
+          x="7"
+          y="10"
+          width="34"
+          height="28"
+          rx="8"
+          fill="#0F172A"
+          stroke="#7DD3FC"
+          strokeWidth="2"
+        />
+        <path
+          d="M7 18h34"
+          stroke="#7DD3FC"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <circle cx="13" cy="14" r="1.4" fill="#F87171" />
+        <circle cx="18" cy="14" r="1.4" fill="#FBBF24" />
+        <circle cx="23" cy="14" r="1.4" fill="#34D399" />
+        <circle
+          cx="24"
+          cy="28"
+          r="7"
+          stroke="#E0F2FE"
+          strokeWidth="2"
+        />
+        <path
+          d="M17 28h14M24 21c2.3 2 3.5 4.33 3.5 7S26.3 33 24 35c-2.3-2-3.5-4.33-3.5-7S21.7 23 24 21Z"
+          stroke="#E0F2FE"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
@@ -203,6 +329,83 @@ function windowTitle(appId: AppID) {
   return "Settings";
 }
 
+function detectSnapMode(pointerX: number, pointerY: number): SnapMode | "maximize" | null {
+  const edgeThreshold = 36;
+  const topThreshold = 44;
+  const cornerThreshold = 140;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const nearLeft = pointerX <= edgeThreshold;
+  const nearRight = pointerX >= viewportWidth - edgeThreshold;
+  const nearTop = pointerY <= topThreshold;
+  const nearBottom = pointerY >= viewportHeight - edgeThreshold;
+  const inTopLeftCorner = pointerX <= cornerThreshold && pointerY <= cornerThreshold;
+  const inTopRightCorner =
+    pointerX >= viewportWidth - cornerThreshold && pointerY <= cornerThreshold;
+  const inBottomLeftCorner =
+    pointerX <= cornerThreshold && pointerY >= viewportHeight - cornerThreshold;
+  const inBottomRightCorner =
+    pointerX >= viewportWidth - cornerThreshold &&
+    pointerY >= viewportHeight - cornerThreshold;
+
+  if (inTopLeftCorner) {
+    return "top-left";
+  }
+  if (inTopRightCorner) {
+    return "top-right";
+  }
+  if (inBottomLeftCorner) {
+    return "bottom-left";
+  }
+  if (inBottomRightCorner) {
+    return "bottom-right";
+  }
+  if (nearTop) {
+    return "maximize";
+  }
+  if (nearLeft) {
+    return "left";
+  }
+  if (nearRight) {
+    return "right";
+  }
+  if (nearBottom) {
+    return null;
+  }
+
+  return null;
+}
+
+function getSnapBounds(mode: SnapMode | "maximize") {
+  if (mode === "maximize") {
+    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  }
+
+  if (mode === "left") {
+    return { left: 0, top: 0, width: window.innerWidth / 2, height: window.innerHeight };
+  }
+
+  if (mode === "right") {
+    return {
+      left: window.innerWidth / 2,
+      top: 0,
+      width: window.innerWidth / 2,
+      height: window.innerHeight,
+    };
+  }
+
+  const isLeft = mode === "top-left" || mode === "bottom-left";
+  const isTop = mode === "top-left" || mode === "top-right";
+
+  return {
+    left: isLeft ? 0 : window.innerWidth / 2,
+    top: isTop ? 0 : window.innerHeight / 2,
+    width: window.innerWidth / 2,
+    height: window.innerHeight / 2,
+  };
+}
+
 export function Dashboard({
   user,
   overview,
@@ -231,6 +434,7 @@ export function Dashboard({
       "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
   }));
   const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
+  const [snapPreview, setSnapPreview] = useState<SnapMode | "maximize" | null>(null);
   const dragStateRef = useRef<DragState>(null);
   const nextZIndexRef = useRef(4);
 
@@ -345,6 +549,7 @@ export function Dashboard({
           open: false,
           minimized: false,
           maximized: false,
+          snapped: null,
           position: current[appId].lastFloatingPosition,
         },
       }));
@@ -386,6 +591,7 @@ export function Dashboard({
           [appId]: {
             ...nextWindow,
             maximized: false,
+            snapped: null,
             position: nextWindow.lastFloatingPosition,
           },
         };
@@ -396,6 +602,7 @@ export function Dashboard({
         [appId]: {
           ...nextWindow,
           maximized: true,
+          snapped: null,
           lastFloatingPosition: nextWindow.position,
         },
       };
@@ -408,44 +615,67 @@ export function Dashboard({
       return;
     }
 
-    const raw = window.localStorage.getItem(wallpaperStorageKey);
-    if (!raw) {
-      applyPresetWallpaper(DEFAULT_WALLPAPER);
-      return;
-    }
+    let cancelled = false;
 
-    try {
-      const parsed = JSON.parse(raw) as Partial<WallpaperState>;
-      if (parsed.mode === "custom" && parsed.image) {
-        setWallpaper({
-          mode: "custom",
-          presetId: DEFAULT_WALLPAPER,
-          image: parsed.image,
-          overlay:
-            parsed.overlay ??
-            "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
-        });
-        setCustomWallpaperUrl(parsed.image);
+    const loadWallpaper = async () => {
+      const raw = window.localStorage.getItem(wallpaperStorageKey);
+      if (!raw) {
+        if (!cancelled) {
+          applyPresetWallpaper(DEFAULT_WALLPAPER);
+        }
         return;
       }
 
-      if (parsed.presetId) {
-        const preset = wallpaperPresets.find((item) => item.id === parsed.presetId);
-        if (preset) {
-          setWallpaper({
-            mode: "preset",
-            presetId: preset.id,
-            image: preset.image,
-            overlay: preset.overlay,
-          });
-          return;
-        }
-      }
-    } catch {
-      // Ignore invalid local storage and fall back to default wallpaper.
-    }
+      try {
+        const parsed = JSON.parse(raw) as Partial<WallpaperState>;
+        if (parsed.mode === "custom" && parsed.image) {
+          const storedImage =
+            parsed.image === CUSTOM_WALLPAPER_STORAGE_MARKER
+              ? await readWallpaperImage(wallpaperStorageKey)
+              : parsed.image;
 
-    applyPresetWallpaper(DEFAULT_WALLPAPER);
+          if (storedImage && !cancelled) {
+            setWallpaper({
+              mode: "custom",
+              presetId: DEFAULT_WALLPAPER,
+              image: storedImage,
+              overlay:
+                parsed.overlay ??
+                "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
+            });
+            setCustomWallpaperUrl(
+              storedImage.startsWith("data:") ? "" : storedImage,
+            );
+            return;
+          }
+        }
+
+        if (parsed.presetId) {
+          const preset = wallpaperPresets.find((item) => item.id === parsed.presetId);
+          if (preset && !cancelled) {
+            setWallpaper({
+              mode: "preset",
+              presetId: preset.id,
+              image: preset.image,
+              overlay: preset.overlay,
+            });
+            return;
+          }
+        }
+      } catch {
+        // Ignore invalid local storage and fall back to default wallpaper.
+      }
+
+      if (!cancelled) {
+        applyPresetWallpaper(DEFAULT_WALLPAPER);
+      }
+    };
+
+    void loadWallpaper();
+
+    return () => {
+      cancelled = true;
+    };
   }, [wallpaperStorageKey]);
 
   useEffect(() => {
@@ -458,12 +688,15 @@ export function Dashboard({
       if ((event.buttons & 1) !== 1) {
         dragStateRef.current = null;
         setDraggingApp(null);
+        setSnapPreview(null);
         return;
       }
 
+      setSnapPreview(detectSnapMode(event.clientX, event.clientY));
+
       setWindows((current) => {
         const targetWindow = current[dragState.appId];
-        if (targetWindow.maximized) {
+        if (targetWindow.maximized || targetWindow.snapped) {
           return current;
         }
 
@@ -492,13 +725,44 @@ export function Dashboard({
 
       dragStateRef.current = null;
       setDraggingApp(null);
-      setWindows((current) => ({
-        ...current,
-        [dragState.appId]: {
-          ...current[dragState.appId],
-          lastFloatingPosition: current[dragState.appId].position,
-        },
-      }));
+      setWindows((current) => {
+        const activePreview = detectSnapMode(event.clientX, event.clientY);
+
+        if (activePreview === "maximize") {
+          return {
+            ...current,
+            [dragState.appId]: {
+              ...current[dragState.appId],
+              maximized: true,
+              snapped: null,
+              lastFloatingPosition: current[dragState.appId].position,
+            },
+          };
+        }
+
+        if (activePreview) {
+          return {
+            ...current,
+            [dragState.appId]: {
+              ...current[dragState.appId],
+              maximized: false,
+              snapped: activePreview,
+              lastFloatingPosition: current[dragState.appId].position,
+            },
+          };
+        }
+
+        return {
+          ...current,
+          [dragState.appId]: {
+            ...current[dragState.appId],
+            maximized: false,
+            snapped: null,
+            lastFloatingPosition: current[dragState.appId].position,
+          },
+        };
+      });
+      setSnapPreview(null);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -517,11 +781,39 @@ export function Dashboard({
       return;
     }
 
-    try {
-      window.localStorage.setItem(wallpaperStorageKey, JSON.stringify(wallpaper));
-    } catch {
-      setWallpaperError("Wallpaper could not be saved locally. Try a smaller image.");
-    }
+    let cancelled = false;
+
+    const persistWallpaper = async () => {
+      try {
+        if (wallpaper.mode === "custom" && wallpaper.image.startsWith("data:")) {
+          await writeWallpaperImage(wallpaperStorageKey, wallpaper.image);
+          window.localStorage.setItem(
+            wallpaperStorageKey,
+            JSON.stringify({
+              ...wallpaper,
+              image: CUSTOM_WALLPAPER_STORAGE_MARKER,
+            }),
+          );
+        } else {
+          await deleteWallpaperImage(wallpaperStorageKey);
+          window.localStorage.setItem(wallpaperStorageKey, JSON.stringify(wallpaper));
+        }
+
+        if (!cancelled) {
+          setWallpaperError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setWallpaperError("Wallpaper could not be saved locally. Try a smaller image.");
+        }
+      }
+    };
+
+    void persistWallpaper();
+
+    return () => {
+      cancelled = true;
+    };
   }, [wallpaper, wallpaperStorageKey]);
 
   const startDragging = (
@@ -540,13 +832,27 @@ export function Dashboard({
     let offsetX = event.clientX - appWindow.position.x;
     let offsetY = event.clientY - appWindow.position.y;
 
-    if (appWindow.maximized) {
+    if (appWindow.maximized || appWindow.snapped) {
       const restoredWidth = Math.min(window.innerWidth * 0.78, 980);
+      const restoredHeight = Math.min(window.innerHeight * 0.7, 720);
+      const currentBounds = appWindow.maximized
+        ? getSnapBounds("maximize")
+        : getSnapBounds(appWindow.snapped ?? "left");
       const pointerRatio =
-        window.innerWidth > 0 ? event.clientX / window.innerWidth : 0.5;
+        currentBounds.width > 0
+          ? (event.clientX - currentBounds.left) / currentBounds.width
+          : 0.5;
+      const pointerVerticalRatio =
+        currentBounds.height > 0
+          ? (event.clientY - currentBounds.top) / currentBounds.height
+          : 0.1;
       const anchorX = Math.max(
         28,
         Math.min(restoredWidth - 28, restoredWidth * pointerRatio),
+      );
+      const anchorY = Math.max(
+        16,
+        Math.min(restoredHeight - 16, restoredHeight * pointerVerticalRatio),
       );
 
       nextPosition = {
@@ -554,7 +860,7 @@ export function Dashboard({
           -restoredWidth + 120,
           Math.min(event.clientX - anchorX, window.innerWidth - 120),
         ),
-        y: Math.max(-28, Math.min(event.clientY - 16, window.innerHeight - 48)),
+        y: Math.max(-28, Math.min(event.clientY - anchorY, window.innerHeight - 48)),
       };
 
       setWindows((current) => ({
@@ -562,6 +868,7 @@ export function Dashboard({
         [appId]: {
           ...current[appId],
           maximized: false,
+          snapped: null,
           position: nextPosition,
           lastFloatingPosition: nextPosition,
         },
@@ -579,6 +886,7 @@ export function Dashboard({
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraggingApp(appId);
+    setSnapPreview(detectSnapMode(event.clientX, event.clientY));
   };
 
   const stopWindowControlPointer = (
@@ -990,19 +1298,19 @@ export function Dashboard({
             ))}
           </div>
 
-          <div className="pointer-events-none mt-auto flex justify-center pt-8">
-            <div className="pointer-events-auto flex items-center gap-3 rounded-[1.75rem] border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
+          <div className="pointer-events-none mt-auto flex justify-center pt-10">
+            <div className="pointer-events-auto flex items-end gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
               {apps.map((app) => (
                 <button
                   key={app.id}
-                  className={`relative flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold tracking-[0.18em] transition ${
+                  className={`group relative flex flex-col items-center justify-end rounded-2xl transition ${
                     activeApp === app.id &&
                     isAppOpen(app.id) &&
                     !isAppMinimized(app.id)
-                      ? "border-accent/40 bg-accent/15 text-accent"
+                      ? "text-accent"
                       : app.available
-                        ? "border-white/10 bg-white/5 text-ink hover:bg-white/10"
-                        : "border-white/10 bg-black/20 text-muted"
+                        ? "text-ink"
+                        : "text-muted"
                   }`}
                   disabled={!app.available}
                   onClick={app.available ? () => void toggleApp(app.id) : undefined}
@@ -1017,9 +1325,28 @@ export function Dashboard({
                   }
                   type="button"
                 >
-                  {initials(app.label)}
+                  <span className="pointer-events-none absolute -top-9 rounded-md border border-white/10 bg-black/75 px-2.5 py-1 text-[11px] text-ink opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100">
+                    {app.label}
+                  </span>
+                  <span
+                    className={`relative flex h-14 w-14 items-center justify-center rounded-lg border backdrop-blur-md transition duration-200 group-hover:-translate-y-1 group-hover:scale-105 ${
+                      activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
+                        ? "border-accent/45 bg-accent/15 shadow-[0_10px_28px_rgba(56,189,248,0.22)]"
+                        : app.available
+                          ? "border-white/10 bg-white/8 group-hover:border-white/20 group-hover:bg-white/14"
+                          : "border-white/10 bg-black/20"
+                    }`}
+                  >
+                    {renderAppIcon(app.id)}
+                  </span>
                   {isAppOpen(app.id) ? (
-                    <span className="absolute -bottom-1 h-1.5 w-1.5 rounded-full bg-accent" />
+                    <span
+                      className={`mt-2 h-1.5 rounded-full transition-all ${
+                        activeApp === app.id && !isAppMinimized(app.id)
+                          ? "w-5 bg-accent"
+                          : "w-1.5 bg-white/70"
+                      }`}
+                    />
                   ) : null}
                 </button>
               ))}
@@ -1027,22 +1354,45 @@ export function Dashboard({
           </div>
         </div>
 
+        {draggingApp && snapPreview ? (
+          <div className="pointer-events-none absolute inset-0 z-40 p-2">
+            <div
+              className="absolute rounded-[1.6rem] border border-sky-300/45 bg-sky-400/14 shadow-[0_0_0_1px_rgba(125,211,252,0.14)_inset]"
+              style={getSnapBounds(snapPreview)}
+            />
+          </div>
+        ) : null}
+
         {visibleApps.map((app) => {
           const appWindow = windows[app.id];
+          const snappedBounds = appWindow.snapped
+            ? getSnapBounds(appWindow.snapped)
+            : null;
+          const isFramedToViewport = appWindow.maximized || snappedBounds !== null;
 
           return (
             <div
               key={app.id}
               className={`absolute ${
-                appWindow.maximized
-                  ? "inset-0 h-screen w-screen"
+                isFramedToViewport
+                  ? "h-screen w-screen"
                   : "h-[min(70vh,720px)] w-[min(78vw,980px)]"
               }`}
               onMouseDown={() => focusApp(app.id)}
               style={{
                 zIndex: 20 + appWindow.zIndex,
-                left: appWindow.maximized ? undefined : `${appWindow.position.x}px`,
-                top: appWindow.maximized ? undefined : `${appWindow.position.y}px`,
+                left: isFramedToViewport
+                  ? appWindow.maximized
+                    ? 0
+                    : snappedBounds?.left
+                  : `${appWindow.position.x}px`,
+                top: isFramedToViewport
+                  ? appWindow.maximized
+                    ? 0
+                    : snappedBounds?.top
+                  : `${appWindow.position.y}px`,
+                width: appWindow.maximized ? "100vw" : snappedBounds?.width,
+                height: appWindow.maximized ? "100vh" : snappedBounds?.height,
               }}
             >
               <div
