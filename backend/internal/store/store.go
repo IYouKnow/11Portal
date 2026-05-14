@@ -32,6 +32,19 @@ type Workspace struct {
 	Status      string `json:"status"`
 }
 
+type RemoteDesktopProfile struct {
+	ID                    int64     `json:"id"`
+	UserID                int64     `json:"userId"`
+	Name                  string    `json:"name"`
+	Host                  string    `json:"host"`
+	Port                  int       `json:"port"`
+	Domain                string    `json:"domain"`
+	Username              string    `json:"username"`
+	IgnoreCert            bool      `json:"ignoreCert"`
+	GuacamoleConnectionID int64     `json:"-"`
+	CreatedAt             time.Time `json:"createdAt"`
+}
+
 type Session struct {
 	Token     string
 	UserID    int64
@@ -42,6 +55,15 @@ type CreateUserInput struct {
 	Email    string
 	Password string
 	Role     string
+}
+
+type CreateRemoteDesktopProfileInput struct {
+	Name       string
+	Host       string
+	Port       int
+	Domain     string
+	Username   string
+	IgnoreCert bool
 }
 
 func New(db *sql.DB) *Store {
@@ -88,6 +110,19 @@ func (s *Store) migrate() error {
 			status TEXT NOT NULL DEFAULT 'ready',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS remote_desktop_profiles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			label TEXT NOT NULL,
+			host TEXT NOT NULL,
+			port INTEGER NOT NULL DEFAULT 3389,
+			username TEXT NOT NULL DEFAULT '',
+			domain TEXT NOT NULL DEFAULT '',
+			ignore_cert INTEGER NOT NULL DEFAULT 0,
+			guacamole_connection_id INTEGER,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
 	}
 
 	for _, statement := range statements {
@@ -102,6 +137,26 @@ func (s *Store) migrate() error {
 
 	if _, err := s.db.Exec(`UPDATE users SET role = 'user' WHERE role IS NULL OR TRIM(role) = ''`); err != nil {
 		return fmt.Errorf("migrate backfill user role: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN domain TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add remote desktop domain: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN ignore_cert INTEGER NOT NULL DEFAULT 0`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add remote desktop ignore_cert: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN guacamole_connection_id INTEGER`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add remote desktop guacamole_connection_id: %w", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE remote_desktop_profiles SET username = '' WHERE username IS NULL`); err != nil {
+		return fmt.Errorf("migrate backfill remote desktop username: %w", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE remote_desktop_profiles SET domain = '' WHERE domain IS NULL`); err != nil {
+		return fmt.Errorf("migrate backfill remote desktop domain: %w", err)
 	}
 
 	return nil
@@ -323,6 +378,142 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	return &user, nil
 }
 
+func (s *Store) ListRemoteDesktopProfiles(ctx context.Context, userID int64) ([]RemoteDesktopProfile, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, user_id, label, host, port, domain, username, ignore_cert, guacamole_connection_id, created_at
+		FROM remote_desktop_profiles
+		WHERE user_id = ?
+		ORDER BY label ASC, id ASC`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]RemoteDesktopProfile, 0)
+	for rows.Next() {
+		var item RemoteDesktopProfile
+		var ignoreCert int
+		var guacamoleConnectionID sql.NullInt64
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.Name,
+			&item.Host,
+			&item.Port,
+			&item.Domain,
+			&item.Username,
+			&ignoreCert,
+			&guacamoleConnectionID,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.IgnoreCert = ignoreCert != 0
+		if guacamoleConnectionID.Valid {
+			item.GuacamoleConnectionID = guacamoleConnectionID.Int64
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func (s *Store) CreateRemoteDesktopProfile(ctx context.Context, userID int64, input CreateRemoteDesktopProfileInput) (*RemoteDesktopProfile, error) {
+	result, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO remote_desktop_profiles (user_id, label, host, port, domain, username, ignore_cert)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		userID,
+		strings.TrimSpace(input.Name),
+		strings.TrimSpace(input.Host),
+		input.Port,
+		strings.TrimSpace(input.Domain),
+		strings.TrimSpace(input.Username),
+		boolToInt(input.IgnoreCert),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetRemoteDesktopProfileByID(ctx, userID, id)
+}
+
+func (s *Store) GetRemoteDesktopProfileByID(ctx context.Context, userID, profileID int64) (*RemoteDesktopProfile, error) {
+	var item RemoteDesktopProfile
+	var ignoreCert int
+	var guacamoleConnectionID sql.NullInt64
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, user_id, label, host, port, domain, username, ignore_cert, guacamole_connection_id, created_at
+		FROM remote_desktop_profiles
+		WHERE id = ? AND user_id = ?
+		LIMIT 1`,
+		profileID,
+		userID,
+	).Scan(
+		&item.ID,
+		&item.UserID,
+		&item.Name,
+		&item.Host,
+		&item.Port,
+		&item.Domain,
+		&item.Username,
+		&ignoreCert,
+		&guacamoleConnectionID,
+		&item.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	item.IgnoreCert = ignoreCert != 0
+	if guacamoleConnectionID.Valid {
+		item.GuacamoleConnectionID = guacamoleConnectionID.Int64
+	}
+
+	return &item, nil
+}
+
+func (s *Store) DeleteRemoteDesktopProfile(ctx context.Context, userID, profileID int64) (bool, error) {
+	result, err := s.db.ExecContext(
+		ctx,
+		`DELETE FROM remote_desktop_profiles WHERE id = ? AND user_id = ?`,
+		profileID,
+		userID,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
+func (s *Store) UpdateRemoteDesktopProfileConnectionID(ctx context.Context, userID, profileID, connectionID int64) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE remote_desktop_profiles
+		SET guacamole_connection_id = ?
+		WHERE id = ? AND user_id = ?`,
+		connectionID,
+		profileID,
+		userID,
+	)
+	return err
+}
+
 func normalizeRole(role string) string {
 	if strings.EqualFold(strings.TrimSpace(role), "admin") {
 		return "admin"
@@ -338,4 +529,12 @@ func randomToken() (string, error) {
 	}
 
 	return hex.EncodeToString(buf), nil
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+
+	return 0
 }

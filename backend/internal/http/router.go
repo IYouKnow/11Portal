@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -15,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/portal/backend/internal/config"
+	"github.com/portal/backend/internal/guacamole"
 	"github.com/portal/backend/internal/http/handlers"
 	"github.com/portal/backend/internal/http/middleware"
 	"github.com/portal/backend/internal/store"
@@ -43,6 +45,15 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	systemHandler := handlers.NewSystemHandler(cfg, dataStore)
 	userHandler := handlers.NewUserHandler(dataStore)
 	workspaceHandler := handlers.NewWorkspaceHandler(dataStore)
+	guacamoleClient, err := guacamole.NewClient(cfg)
+	if err != nil {
+		log.Printf("WARNING: failed to configure guacamole client: %v", err)
+	}
+	guacamoleProxyHandler, err := handlers.NewGuacamoleProxyHandler(cfg)
+	if err != nil {
+		log.Printf("WARNING: failed to configure guacamole websocket proxy: %v", err)
+	}
+	remoteDesktopHandler := handlers.NewRemoteDesktopHandler(dataStore, guacamoleClient)
 	terminalManager := terminal.NewManager(time.Duration(cfg.TerminalIdleMinutes) * time.Minute)
 	_ = terminalManager.StartReaper(time.Minute)
 	terminalSessionHandler := handlers.NewTerminalSessionHandler(cfg, terminalManager)
@@ -60,6 +71,10 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	secured.Get("/users", middleware.RequireRole("admin"), userHandler.List)
 	secured.Post("/users", middleware.RequireRole("admin"), userHandler.Create)
 	secured.Get("/workspaces", workspaceHandler.List)
+	secured.Get("/remote-desktop/profiles", remoteDesktopHandler.ListProfiles)
+	secured.Post("/remote-desktop/profiles", remoteDesktopHandler.CreateProfile)
+	secured.Delete("/remote-desktop/profiles/:id", remoteDesktopHandler.DeleteProfile)
+	secured.Post("/remote-desktop/launch", remoteDesktopHandler.Launch)
 	secured.Post("/terminal/sessions", terminalSessionHandler.Create)
 	secured.Get("/terminal/sessions", terminalSessionHandler.List)
 	secured.Delete("/terminal/sessions/:id", terminalSessionHandler.Delete)
@@ -88,6 +103,21 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		}),
 	)
 
+	if guacamoleProxyHandler != nil && guacamoleProxyHandler.Enabled() {
+		app.Use(
+			"/guacamole/websocket-tunnel",
+			middleware.RequireSession(cfg, dataStore),
+			guacamoleProxyHandler.PrepareWebSocketTunnel,
+		)
+		app.Get(
+			"/guacamole/websocket-tunnel",
+			websocket.New(guacamoleProxyHandler.WebSocketTunnel, websocket.Config{
+				Origins:      []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
+				Subprotocols: []string{"guacamole"},
+			}),
+		)
+	}
+
 	if chromiumURL, err := url.Parse(cfg.ChromiumInternalURL); err == nil && shouldProxyChromium(cfg) {
 		chromiumProxy := httputil.NewSingleHostReverseProxy(chromiumURL)
 		originalDirector := chromiumProxy.Director
@@ -109,6 +139,12 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		app.Use("/chromium", middleware.RequireSession(cfg, dataStore), adaptor.HTTPHandler(chromiumProxy))
 	}
 
+	if guacamoleProxy, err := buildGuacamoleProxy(cfg); err == nil {
+		app.Use("/guacamole", middleware.RequireSession(cfg, dataStore), adaptor.HTTPHandler(guacamoleProxy))
+	} else if strings.TrimSpace(cfg.GuacamoleInternalURL) != "" {
+		log.Printf("WARNING: failed to configure guacamole proxy: %v", err)
+	}
+
 	if cfg.WebRoot != "" {
 		if info, err := os.Stat(cfg.WebRoot); err == nil && info.IsDir() {
 			app.Static("/", cfg.WebRoot)
@@ -119,6 +155,75 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	}
 
 	return app
+}
+
+func buildGuacamoleProxy(cfg config.Config) (http.Handler, error) {
+	trimmedURL := strings.TrimSpace(cfg.GuacamoleInternalURL)
+	if trimmedURL == "" {
+		return nil, fmt.Errorf("empty guacamole internal url")
+	}
+
+	target, err := url.Parse(trimmedURL)
+	if err != nil {
+		return nil, err
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(&url.URL{
+		Scheme: target.Scheme,
+		Host:   target.Host,
+	})
+
+	basePath := strings.TrimRight(target.Path, "/")
+	proxy.Director = func(req *http.Request) {
+		originalHost := req.Host
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.Host = target.Host
+		req.Header.Set("Host", target.Host)
+		req.Header.Set("X-Forwarded-Host", originalHost)
+		req.Header.Set("X-Forwarded-Proto", forwardedProto(req))
+		req.Header.Set("X-Forwarded-For", forwardedFor(req))
+		req.URL.Path = singleJoiningSlash(basePath, strings.TrimPrefix(req.URL.Path, "/guacamole"))
+		if req.URL.RawPath != "" {
+			req.URL.RawPath = singleJoiningSlash(basePath, strings.TrimPrefix(req.URL.RawPath, "/guacamole"))
+		}
+	}
+	proxy.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	proxy.FlushInterval = -1
+
+	return proxy, nil
+}
+
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	default:
+		return a + b
+	}
+}
+
+func forwardedProto(req *http.Request) string {
+	if proto := req.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	if req.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func forwardedFor(req *http.Request) string {
+	if forwarded := req.Header.Get("X-Forwarded-For"); forwarded != "" {
+		return forwarded
+	}
+	return req.RemoteAddr
 }
 
 func shouldProxyChromium(cfg config.Config) bool {

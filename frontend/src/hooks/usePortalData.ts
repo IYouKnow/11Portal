@@ -13,6 +13,7 @@ import {
 } from "../lib/api";
 
 type PortalState = {
+  initialized: boolean;
   loading: boolean;
   user: User | null;
   overview: Overview | null;
@@ -22,6 +23,7 @@ type PortalState = {
 };
 
 const initialState: PortalState = {
+  initialized: false,
   loading: true,
   user: null,
   overview: null,
@@ -47,6 +49,7 @@ export function usePortalData() {
         user.role === "admin" ? (await listUsers()).items : [];
 
       setState({
+        initialized: true,
         loading: false,
         user,
         overview,
@@ -56,6 +59,7 @@ export function usePortalData() {
       });
     } catch {
       setState({
+        initialized: true,
         loading: false,
         user: null,
         overview: null,
@@ -88,6 +92,7 @@ export function usePortalData() {
   const signOut = async () => {
     await logout();
     setState({
+      initialized: true,
       loading: false,
       user: null,
       overview: null,

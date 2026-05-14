@@ -1,10 +1,19 @@
-﻿services:
+services:
   portal:
-    image: ghcr.io/iyouknow/portal:${PORTAL_IMAGE_TAG-v0.1.1}
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: Dockerfile.portal
+    image: portal:local
     restart: unless-stopped
     depends_on:
-      - chromium
+      chromium:
+        condition: service_started
+      guacamole:
+        condition: service_started
+      guacd:
+        condition: service_started
+      guacamole-db:
+        condition: service_healthy
     environment:
       - PORTAL_ADMIN_EMAIL=${PORTAL_ADMIN_EMAIL-admin@portal.local}
       - PORTAL_ADMIN_PASSWORD=${PORTAL_ADMIN_PASSWORD-change-me-now}
@@ -17,7 +26,12 @@
       - PORTAL_WEB_ROOT=/app/public
       - PORTAL_PUBLIC_URL=${PORTAL_PUBLIC_URL-http://localhost:38480}
       - PORTAL_FRONTEND_ORIGIN=${PORTAL_FRONTEND_ORIGIN-http://localhost:38480}
-      - PORTAL_CHROMIUM_URL=https://chromium:3001
+      - PORTAL_CHROMIUM_INTERNAL_URL=${PORTAL_CHROMIUM_INTERNAL_URL-https://chromium:3001/chromium}
+      - PORTAL_CHROMIUM_PUBLIC_URL=${PORTAL_CHROMIUM_PUBLIC_URL-/chromium/}
+      - PORTAL_GUACAMOLE_INTERNAL_URL=${PORTAL_GUACAMOLE_INTERNAL_URL-http://guacamole:8080/guacamole}
+      - PORTAL_GUACAMOLE_ADMIN_USERNAME=${PORTAL_GUACAMOLE_ADMIN_USERNAME-portaladmin}
+      - PORTAL_GUACAMOLE_ADMIN_PASSWORD=${PORTAL_GUACAMOLE_ADMIN_PASSWORD-change-me-guacadmin}
+      - PORTAL_GUACAMOLE_DATA_SOURCE=${PORTAL_GUACAMOLE_DATA_SOURCE-postgresql}
     ports:
       - "38480:8080"
     volumes:
@@ -56,6 +70,51 @@
       - "38482:3000"
     volumes:
       - ./data/chromium:/config
+    networks:
+      - portal-net
+
+  guacamole-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${GUACAMOLE_POSTGRES_DB-guacamole_db}
+      - POSTGRES_USER=${GUACAMOLE_POSTGRES_USER-guacamole_user}
+      - POSTGRES_PASSWORD=${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${GUACAMOLE_POSTGRES_USER-guacamole_user} -d ${GUACAMOLE_POSTGRES_DB-guacamole_db}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./data/guacamole-postgres:/var/lib/postgresql/data
+      - ./docker/guacamole/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - portal-net
+
+  guacd:
+    image: guacamole/guacd:1.6.0
+    restart: unless-stopped
+    networks:
+      - portal-net
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    restart: unless-stopped
+    depends_on:
+      guacamole-db:
+        condition: service_healthy
+      guacd:
+        condition: service_started
+    environment:
+      - GUACD_HOSTNAME=guacd
+      - POSTGRESQL_HOSTNAME=guacamole-db
+      - POSTGRESQL_DATABASE=${GUACAMOLE_POSTGRES_DB-guacamole_db}
+      - POSTGRESQL_USERNAME=${GUACAMOLE_POSTGRES_USER-guacamole_user}
+      - POSTGRESQL_PASSWORD=${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
     networks:
       - portal-net
 

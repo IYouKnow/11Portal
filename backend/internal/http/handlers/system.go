@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"runtime"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/portal/backend/internal/config"
@@ -33,25 +34,32 @@ func (h *SystemHandler) Overview(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"platform": fiber.Map{
-			"name":              "Portal",
-			"publicURL":         h.cfg.PublicURL,
-			"workspacesRoot":    h.cfg.WorkspacesRoot,
-			"runtime":           runtime.GOOS + "/" + runtime.GOARCH,
-			"chromiumURL":       h.cfg.ChromiumPublicURL,
-			"remoteDesktopURL":  h.cfg.RemoteDesktopPublicURL,
+			"name":                    "Portal",
+			"publicURL":               h.cfg.PublicURL,
+			"workspacesRoot":          h.cfg.WorkspacesRoot,
+			"runtime":                 runtime.GOOS + "/" + runtime.GOARCH,
+			"chromiumURL":             h.cfg.ChromiumPublicURL,
+			"remoteDesktopGatewayURL": "/guacamole/",
+			"remoteDesktopEnabled":    remoteDesktopConfigured(h.cfg),
 		},
 		"stats": fiber.Map{
 			"workspaceCount": len(workspaces),
 			"terminalStatus": "ready",
-			"remoteDesktop":  remoteDesktopStatus(h.cfg.RemoteDesktopPublicURL),
+			"remoteDesktop":  remoteDesktopStatus(h.cfg),
 		},
 	})
 }
 
-func remoteDesktopStatus(publicURL string) string {
-	if publicURL == "" {
+func remoteDesktopStatus(cfg config.Config) string {
+	if !remoteDesktopConfigured(cfg) {
 		return "planned"
 	}
 
 	return "ready"
+}
+
+func remoteDesktopConfigured(cfg config.Config) bool {
+	return strings.TrimSpace(cfg.GuacamoleInternalURL) != "" &&
+		strings.TrimSpace(cfg.GuacamoleAdminUsername) != "" &&
+		strings.TrimSpace(cfg.GuacamoleAdminPassword) != ""
 }

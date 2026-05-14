@@ -8,22 +8,25 @@ import (
 )
 
 type Config struct {
-	HTTPAddr            string
-	PublicURL           string
-	FrontendOrigin      string
-	SessionCookieName   string
-	SessionTTLHours     int
-	AdminEmail          string
-	AdminPassword       string
-	DBPath              string
-	Shell               string
-	WorkspacesRoot      string
-	ChromiumContainer   string
-	ChromiumInternalURL string
-	ChromiumPublicURL   string
-	RemoteDesktopPublicURL string
-	TerminalIdleMinutes int
-	WebRoot             string
+	HTTPAddr               string
+	PublicURL              string
+	FrontendOrigin         string
+	SessionCookieName      string
+	SessionTTLHours        int
+	AdminEmail             string
+	AdminPassword          string
+	DBPath                 string
+	Shell                  string
+	WorkspacesRoot         string
+	ChromiumContainer      string
+	ChromiumInternalURL    string
+	ChromiumPublicURL      string
+	GuacamoleInternalURL   string
+	GuacamoleAdminUsername string
+	GuacamoleAdminPassword string
+	GuacamoleDataSource    string
+	TerminalIdleMinutes    int
+	WebRoot                string
 }
 
 func Load() Config {
@@ -41,22 +44,25 @@ func Load() Config {
 	}
 
 	return Config{
-		HTTPAddr:            envOrDefault("PORTAL_HTTP_ADDR", ":8080"),
-		PublicURL:           publicURL,
-		FrontendOrigin:      envOrDefault("PORTAL_FRONTEND_ORIGIN", "http://localhost:5173"),
-		SessionCookieName:   envOrDefault("PORTAL_SESSION_COOKIE_NAME", "portal_session"),
-		SessionTTLHours:     envOrDefaultInt("PORTAL_SESSION_TTL_HOURS", 24),
-		AdminEmail:          envOrDefault("PORTAL_ADMIN_EMAIL", "admin@portal.local"),
-		AdminPassword:       envOrDefault("PORTAL_ADMIN_PASSWORD", "change-me-now"),
-		DBPath:              envOrDefault("PORTAL_DB_PATH", "./data/portal.db"),
-		Shell:               envOrDefault("PORTAL_SHELL", "/bin/sh"),
-		WorkspacesRoot:      envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
-		ChromiumContainer:   envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
-		ChromiumInternalURL: chromiumInternalURL,
-		ChromiumPublicURL:   chromiumPublicURL,
-		RemoteDesktopPublicURL: envOrDefault("PORTAL_REMOTE_DESKTOP_PUBLIC_URL", ""),
-		TerminalIdleMinutes: envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
-		WebRoot:             envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
+		HTTPAddr:               envOrDefault("PORTAL_HTTP_ADDR", ":8080"),
+		PublicURL:              publicURL,
+		FrontendOrigin:         envOrDefault("PORTAL_FRONTEND_ORIGIN", "http://localhost:5173"),
+		SessionCookieName:      envOrDefault("PORTAL_SESSION_COOKIE_NAME", "portal_session"),
+		SessionTTLHours:        envOrDefaultInt("PORTAL_SESSION_TTL_HOURS", 24),
+		AdminEmail:             envOrDefault("PORTAL_ADMIN_EMAIL", "admin@portal.local"),
+		AdminPassword:          envOrDefault("PORTAL_ADMIN_PASSWORD", "change-me-now"),
+		DBPath:                 envOrDefault("PORTAL_DB_PATH", "./data/portal.db"),
+		Shell:                  envOrDefault("PORTAL_SHELL", "/bin/sh"),
+		WorkspacesRoot:         envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
+		ChromiumContainer:      envOrDefault("PORTAL_CHROMIUM_CONTAINER", "portal-chromium"),
+		ChromiumInternalURL:    chromiumInternalURL,
+		ChromiumPublicURL:      chromiumPublicURL,
+		GuacamoleInternalURL:   envOrDefault("PORTAL_GUACAMOLE_INTERNAL_URL", "http://guacamole:8080/guacamole"),
+		GuacamoleAdminUsername: envOrDefault("PORTAL_GUACAMOLE_ADMIN_USERNAME", ""),
+		GuacamoleAdminPassword: envOrDefault("PORTAL_GUACAMOLE_ADMIN_PASSWORD", ""),
+		GuacamoleDataSource:    envOrDefault("PORTAL_GUACAMOLE_DATA_SOURCE", "postgresql"),
+		TerminalIdleMinutes:    envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
+		WebRoot:                envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
 	}
 }
 

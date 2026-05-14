@@ -13,6 +13,7 @@ import {
   type User,
   type Workspace,
 } from "../lib/api";
+import { RemoteDesktopPanel } from "./RemoteDesktopPanel";
 import { TerminalPanel } from "./TerminalPanel";
 
 type DashboardProps = {
@@ -173,14 +174,6 @@ type WallpaperState = {
   presetId: WallpaperPresetId;
   image: string;
   overlay: string;
-};
-
-type RemoteDesktopProfile = {
-  id: string;
-  label: string;
-  host: string;
-  port: string;
-  username: string;
 };
 
 function openWallpaperDatabase(): Promise<IDBDatabase> {
@@ -463,11 +456,6 @@ export function Dashboard({
   const [newUserRole, setNewUserRole] = useState<User["role"]>("user");
   const [customWallpaperUrl, setCustomWallpaperUrl] = useState("");
   const [wallpaperError, setWallpaperError] = useState<string | null>(null);
-  const [remoteDesktopProfiles, setRemoteDesktopProfiles] = useState<RemoteDesktopProfile[]>([]);
-  const [remoteDesktopLabel, setRemoteDesktopLabel] = useState("");
-  const [remoteDesktopHost, setRemoteDesktopHost] = useState("");
-  const [remoteDesktopPort, setRemoteDesktopPort] = useState("3389");
-  const [remoteDesktopUsername, setRemoteDesktopUsername] = useState("");
   const [wallpaper, setWallpaper] = useState<WallpaperState>(() => ({
     mode: "preset",
     presetId: DEFAULT_WALLPAPER,
@@ -485,9 +473,8 @@ export function Dashboard({
   }, [workspaces]);
   const isAdmin = user.role === "admin";
   const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
-  const remoteDesktopURL = overview.platform.remoteDesktopURL?.trim() || "";
+  const remoteDesktopGatewayURL = overview.platform.remoteDesktopGatewayURL?.trim() || "";
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
-  const remoteDesktopProfilesStorageKey = `portal.remoteDesktopProfiles.${user.id}`;
 
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
     const preset = wallpaperPresets.find((item) => item.id === presetId);
@@ -723,36 +710,6 @@ export function Dashboard({
   }, [wallpaperStorageKey]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const raw = window.localStorage.getItem(remoteDesktopProfilesStorageKey);
-    if (!raw) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as RemoteDesktopProfile[];
-      if (Array.isArray(parsed)) {
-        setRemoteDesktopProfiles(
-          parsed.filter((item) => {
-            return (
-              typeof item?.id === "string" &&
-              typeof item?.label === "string" &&
-              typeof item?.host === "string" &&
-              typeof item?.port === "string" &&
-              typeof item?.username === "string"
-            );
-          }),
-        );
-      }
-    } catch {
-      // Ignore invalid saved profiles.
-    }
-  }, [remoteDesktopProfilesStorageKey]);
-
-  useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -890,21 +847,6 @@ export function Dashboard({
     };
   }, [wallpaper, wallpaperStorageKey]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(
-        remoteDesktopProfilesStorageKey,
-        JSON.stringify(remoteDesktopProfiles),
-      );
-    } catch {
-      // Ignore local profile persistence failures.
-    }
-  }, [remoteDesktopProfiles, remoteDesktopProfilesStorageKey]);
-
   const startDragging = (
     appId: AppID,
     event: ReactPointerEvent<HTMLDivElement>,
@@ -1024,40 +966,6 @@ export function Dashboard({
   const handleWallpaperUrlSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     applyCustomWallpaper(customWallpaperUrl);
-  };
-
-  const handleSaveRemoteDesktopProfile = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const label = remoteDesktopLabel.trim();
-    const host = remoteDesktopHost.trim();
-    const port = remoteDesktopPort.trim() || "3389";
-    const username = remoteDesktopUsername.trim();
-
-    if (!label || !host || !username) {
-      return;
-    }
-
-    setRemoteDesktopProfiles((current) => [
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        label,
-        host,
-        port,
-        username,
-      },
-      ...current,
-    ]);
-    setRemoteDesktopLabel("");
-    setRemoteDesktopHost("");
-    setRemoteDesktopPort("3389");
-    setRemoteDesktopUsername("");
-  };
-
-  const handleDeleteRemoteDesktopProfile = (profileId: string) => {
-    setRemoteDesktopProfiles((current) =>
-      current.filter((profile) => profile.id !== profileId),
-    );
   };
 
   const renderWallpaperSection = () => (
@@ -1308,164 +1216,10 @@ export function Dashboard({
   );
 
   const renderRemoteDesktopContent = () => (
-    <div className="grid h-[calc(100%-32px)] grid-cols-[320px_1fr] bg-[#05070b]">
-      <aside className="flex flex-col border-r border-white/10 bg-black/35">
-        <div className="border-b border-white/10 px-5 py-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
-            Remote Desktop
-          </p>
-          <h2 className="mt-2 text-lg font-medium text-ink">Saved machines</h2>
-        </div>
-
-        <form className="space-y-3 border-b border-white/10 px-5 py-4" onSubmit={handleSaveRemoteDesktopProfile}>
-          <label className="block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-              Connection name
-            </span>
-            <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-              onChange={(event) => setRemoteDesktopLabel(event.target.value)}
-              placeholder="Production Windows Server"
-              value={remoteDesktopLabel}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-              Host
-            </span>
-            <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-              onChange={(event) => setRemoteDesktopHost(event.target.value)}
-              placeholder="10.0.0.25"
-              value={remoteDesktopHost}
-            />
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
-            <label className="block">
-              <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-                Port
-              </span>
-              <input
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                onChange={(event) => setRemoteDesktopPort(event.target.value)}
-                placeholder="3389"
-                value={remoteDesktopPort}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-                Username
-              </span>
-              <input
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                onChange={(event) => setRemoteDesktopUsername(event.target.value)}
-                placeholder="Administrator"
-                value={remoteDesktopUsername}
-              />
-            </label>
-          </div>
-
-          <button
-            className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20"
-            type="submit"
-          >
-            Save machine
-          </button>
-        </form>
-
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">
-              Profiles
-            </p>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-muted">
-              {remoteDesktopProfiles.length}
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {remoteDesktopProfiles.length > 0 ? (
-              remoteDesktopProfiles.map((profile) => (
-                <div
-                  key={profile.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-ink">{profile.label}</p>
-                      <p className="mt-1 text-xs text-muted">
-                        {profile.host}:{profile.port}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        User: {profile.username}
-                      </p>
-                    </div>
-                    <button
-                      className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-muted transition hover:text-ink"
-                      onClick={() => handleDeleteRemoteDesktopProfile(profile.id)}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-6 text-muted">
-                No saved machines yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      <div className="flex min-h-0 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-black/25 px-5 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">
-              Gateway
-            </p>
-            <h2 className="mt-1 text-lg font-medium text-ink">
-              {remoteDesktopURL ? "Session" : "Not configured"}
-            </h2>
-          </div>
-
-          {remoteDesktopURL ? (
-            <a
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-ink transition hover:bg-white/10"
-              href={remoteDesktopURL}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Open full page
-            </a>
-          ) : null}
-        </div>
-
-        {remoteDesktopURL ? (
-          <iframe
-            className="h-full w-full border-0 bg-black"
-            src={remoteDesktopURL}
-            title="Portal Remote Desktop"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center p-8">
-            <div className="max-w-md rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-200">
-                {renderAppIcon("remoteDesktop")}
-              </div>
-              <h3 className="mt-5 text-2xl font-medium text-ink">Remote Desktop</h3>
-              <p className="mt-3 text-sm leading-7 text-muted">
-                Configure <code>PORTAL_REMOTE_DESKTOP_PUBLIC_URL</code> to open sessions here.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <RemoteDesktopPanel
+      enabled={overview.platform.remoteDesktopEnabled}
+      gatewayURL={remoteDesktopGatewayURL}
+    />
   );
 
   const renderWindowContent = (appId: AppID) => {

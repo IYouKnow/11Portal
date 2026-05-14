@@ -1,69 +1,30 @@
 # Portal
 
-Portal is a lightweight self-hosted browser workspace platform with a React frontend, a Go/Fiber backend, SQLite persistence, and websocket-powered terminal access.
+Portal is a self-hosted browser workspace platform with a React frontend, a Go/Fiber backend, SQLite persistence, browser terminals, embedded Chromium, and now native-feeling Remote Desktop sessions backed by Apache Guacamole.
 
 ## Stack
 
 - Frontend: React, Vite, Tailwind CSS
 - Backend: Go, Fiber, WebSockets
-- Database: SQLite
+- Portal database: SQLite
+- Remote desktop gateway: Apache Guacamole + guacd + PostgreSQL
 - Auth: bcrypt password hashing with signed-in session cookies
 - Deployment: Docker Compose
-
-## Project Structure
-
-```text
-Portal/
-├─ backend/
-│  ├─ cmd/portal-api/
-│  ├─ internal/
-│  │  ├─ auth/
-│  │  ├─ config/
-│  │  ├─ database/
-│  │  ├─ http/
-│  │  │  ├─ handlers/
-│  │  │  └─ middleware/
-│  │  └─ store/
-│  └─ Dockerfile
-├─ frontend/
-│  ├─ src/
-│  │  ├─ components/
-│  │  ├─ hooks/
-│  │  └─ lib/
-│  └─ Dockerfile
-├─ scripts/
-├─ data/
-├─ workspaces/
-├─ docker-compose.yml
-└─ .env.example
-```
-
-## Features Included
-
-- Login/logout session flow backed by SQLite
-- Role-based auth with `admin` and `user` accounts
-- Admin bootstrap from environment variables
-- REST API for auth, system state, and workspace cards
-- Admin-only API for managed user creation
-- WebSocket shell endpoint for browser terminal access
-- Browser-accessible Chromium workspace session after login
-- Separated frontend and backend apps
-- Docker Compose setup for self-hosted deployment
-- Minimal dark UI inspired by Linear, Vercel, and Tailscale
 
 ## Quick Start
 
 1. Copy `.env.example` to `.env`.
-2. Set a strong `PORTAL_ADMIN_PASSWORD`.
-3. Start with Docker Compose:
+2. Set strong values for `PORTAL_ADMIN_PASSWORD`, `PORTAL_GUACAMOLE_ADMIN_PASSWORD`, and `GUACAMOLE_POSTGRES_PASSWORD`.
+3. Start everything:
 
 ```bash
 docker compose up --build
 ```
 
-4. Open `http://localhost:3000`.
-5. Log in with the admin email and password from `.env`.
-6. Create additional `user` or `admin` accounts from the dashboard. There is no public registration page.
+4. Open `http://localhost:38480`.
+5. Log in with the Portal admin email and password from `.env`.
+
+Portal remains the only public entrypoint. Guacamole, `guacd`, PostgreSQL, and Windows RDP targets stay private on the internal Docker network.
 
 ## Local Development
 
@@ -71,18 +32,10 @@ Backend:
 
 ```bash
 cd backend
-go mod tidy
 go run ./cmd/portal-api
 ```
 
-Root dev flow:
-
-```bash
-pnpm install
-pnpm run dev
-```
-
-Frontend only:
+Frontend:
 
 ```bash
 cd frontend
@@ -90,27 +43,18 @@ pnpm install
 pnpm run dev
 ```
 
-The Vite dev server proxies `/api` and `/ws` to the backend on `http://localhost:8080`.
-
-Chromium in development is provided by Docker Compose. Start it separately if
-you want the embedded browser while using the local Vite/Go dev servers:
+The Vite dev server proxies `/api` and `/ws` to `http://localhost:8080`. Chromium is still easiest to run through Docker Compose:
 
 ```bash
 docker compose up chromium
 ```
 
-This exposes Chromium locally on `https://localhost:3001`, which is what the
-Vite dev proxy uses for `/chromium/`.
-
 ## Chromium Routing
 
-Portal now separates Chromium's internal upstream from its public browser URL:
+Portal separates Chromium's internal upstream from the browser-facing URL:
 
-- `PORTAL_CHROMIUM_INTERNAL_URL`: where Portal reaches Selkies/Chromium on the
-  private network, for example `https://chromium:3001/chromium`
-- `PORTAL_CHROMIUM_PUBLIC_URL`: the URL the browser should open in the iframe,
-  for example `/chromium/` for same-origin proxying or
-  `https://chromium.example.com/chromium` for an external hostname
+- `PORTAL_CHROMIUM_INTERNAL_URL`: where Portal reaches Chromium on the private network
+- `PORTAL_CHROMIUM_PUBLIC_URL`: the URL the frontend should open, usually `/chromium/`
 
 For same-origin deployments, keep:
 
@@ -118,30 +62,67 @@ For same-origin deployments, keep:
 PORTAL_CHROMIUM_PUBLIC_URL=/chromium/
 ```
 
-For separate-hostname deployments behind Cloudflare Tunnel or similar, set:
+## Remote Desktop Architecture
+
+Portal owns the user experience. Guacamole is used only as the internal HTML5 RDP client and gateway.
+
+Flow:
+
+1. User signs in to Portal.
+2. User opens the `Remote Desktop` app.
+3. User selects or creates a Windows profile.
+4. User enters session credentials.
+5. Portal backend creates or updates the matching Guacamole RDP connection.
+6. Portal proxies Guacamole under `/guacamole/*` after Portal auth succeeds.
+7. The RDP session opens inside the Portal window.
+
+Important details:
+
+- Portal auth is required for all Remote Desktop API routes.
+- Portal auth is required before proxying `/guacamole/*`.
+- Guacamole admin credentials are never exposed to the frontend.
+- `guacd` is not exposed publicly.
+- Windows RDP is not exposed publicly.
+- RDP passwords are not stored in Portal.
+- Portal stores the profile. Guacamole stores a connection that uses `${GUAC_PASSWORD}` so the session password entered at connect time is not written into the saved connection parameters.
+
+## Remote Desktop Configuration
+
+These environment variables drive the integration:
 
 ```env
-PORTAL_CHROMIUM_INTERNAL_URL=https://chromium:3001/chromium
-PORTAL_CHROMIUM_PUBLIC_URL=https://chromium.example.com/chromium
+PORTAL_GUACAMOLE_INTERNAL_URL=http://guacamole:8080/guacamole
+PORTAL_GUACAMOLE_ADMIN_USERNAME=portaladmin
+PORTAL_GUACAMOLE_ADMIN_PASSWORD=change-me-guacadmin
+PORTAL_GUACAMOLE_DATA_SOURCE=postgresql
 ```
 
-`PORTAL_CHROMIUM_URL` is still accepted as a compatibility fallback, but new
-deployments should prefer the explicit internal/public variables above.
+The bundled `docker-compose.yml` adds:
 
-## Remote Desktop App
+- `guacamole`
+- `guacd`
+- `guacamole-db` (PostgreSQL)
 
-Portal includes a `Remote Desktop` desktop app that can embed a browser-based
-RDP gateway inside a native-looking window.
+The PostgreSQL schema is initialized from [`docker/guacamole/init/001-initdb.sql`](docker/guacamole/init/001-initdb.sql).
 
-Set this to enable it:
+## Remote Desktop Profile Shape
 
-```env
-PORTAL_REMOTE_DESKTOP_PUBLIC_URL=https://rdp.example.com/
-```
+Portal profiles now include:
 
-When configured, the frontend will load that URL in the app window. This works
-best with a browser-native gateway such as Apache Guacamole or a similar
-service that supports iframe-friendly embedding and RDP sessions in the browser.
+- `name`
+- `host`
+- `port` with default `3389`
+- `domain` optional
+- `username` optional
+- `ignoreCert` boolean
+
+At connect time, the frontend sends:
+
+- `profileId`
+- `username`
+- `password`
+
+The backend responds with a Portal-local Guacamole launch URL that the frontend embeds in an iframe.
 
 ## API Overview
 
@@ -153,12 +134,14 @@ service that supports iframe-friendly embedding and RDP sessions in the browser.
 - `GET /api/v1/users`
 - `POST /api/v1/users`
 - `GET /api/v1/workspaces`
+- `GET /api/v1/remote-desktop/profiles`
+- `POST /api/v1/remote-desktop/profiles`
+- `DELETE /api/v1/remote-desktop/profiles/:id`
+- `POST /api/v1/remote-desktop/launch`
 - `GET /ws/terminal`
 
 ## Notes
 
-- The browser terminal session runs inside the backend container or backend host process.
-- The browser surface is a real streamed Chromium session, not an HTML proxy.
-- The first admin account is ensured at startup from environment variables.
-- Public self-registration is intentionally disabled. New users are created by admins after sign-in.
-- The structure is intentionally modular so future app launchers, remote desktop, and Docker orchestration features can be added without reshaping the project.
+- The backend will bootstrap the configured Guacamole admin user from the default `guacadmin` account if needed on first startup.
+- If you already changed the default Guacamole admin credentials manually, set `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD` to those values.
+- The Portal database and the Guacamole database are separate on purpose.

@@ -20,13 +20,26 @@ export type Overview = {
     workspacesRoot: string;
     runtime: string;
     chromiumURL: string;
-    remoteDesktopURL: string;
+    remoteDesktopGatewayURL: string;
+    remoteDesktopEnabled: boolean;
   };
   stats: {
     workspaceCount: number;
     terminalStatus: string;
     remoteDesktop: string;
   };
+};
+
+export type RemoteDesktopProfile = {
+  id: number;
+  userId: number;
+  name: string;
+  host: string;
+  port: number;
+  domain: string;
+  username: string;
+  ignoreCert: boolean;
+  createdAt: string;
 };
 
 export type TerminalSession = {
@@ -138,5 +151,40 @@ export async function listTerminalSessions() {
 export async function closeTerminalSession(sessionId: string) {
   return request<{ ok: boolean }>(`/api/v1/terminal/sessions/${sessionId}`, {
     method: "DELETE",
+  });
+}
+
+export async function listRemoteDesktopProfiles() {
+  return request<{ items: RemoteDesktopProfile[] }>("/api/v1/remote-desktop/profiles");
+}
+
+export async function createRemoteDesktopProfile(payload: {
+  name: string;
+  host: string;
+  port: number;
+  domain: string;
+  username: string;
+  ignoreCert: boolean;
+}) {
+  return request<{ item: RemoteDesktopProfile }>("/api/v1/remote-desktop/profiles", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteRemoteDesktopProfile(profileId: number) {
+  return request<{ ok: boolean }>(`/api/v1/remote-desktop/profiles/${profileId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function launchRemoteDesktopSession(
+  profileId: number,
+  username: string,
+  password: string,
+) {
+  return request<{ url: string }>("/api/v1/remote-desktop/launch", {
+    method: "POST",
+    body: JSON.stringify({ profileId, username, password }),
   });
 }
