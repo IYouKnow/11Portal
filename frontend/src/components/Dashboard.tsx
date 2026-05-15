@@ -75,10 +75,20 @@ type IconPositionMap = Record<AppID, IconPosition>;
 
 type IconDragState = {
   appId: AppID;
+  appIds: AppID[];
   pointerId: number;
   offsetX: number;
   offsetY: number;
   moved: boolean;
+  initialPositions: IconPositionMap;
+} | null;
+
+type DesktopSelectionState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
 } | null;
 
 const apps: DesktopApp[] = [
@@ -308,6 +318,143 @@ function normalizeDesktopIconPositions(
   }
 
   return nextPositions;
+}
+
+function getIconGroupBounds(appIds: AppID[], positions: IconPositionMap) {
+  const xs = appIds.map((appId) => positions[appId].x);
+  const ys = appIds.map((appId) => positions[appId].y);
+
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  };
+}
+
+function translateDesktopIconGroup(
+  positions: IconPositionMap,
+  appIds: AppID[],
+  deltaX: number,
+  deltaY: number,
+  bounds: DOMRect,
+): IconPositionMap {
+  const groupBounds = getIconGroupBounds(appIds, positions);
+  const maxX = Math.max(0, bounds.width - DESKTOP_ICON_WIDTH);
+  const maxY = Math.max(0, bounds.height - DESKTOP_ICON_HEIGHT);
+  const clampedDeltaX = Math.max(-groupBounds.minX, Math.min(deltaX, maxX - groupBounds.maxX));
+  const clampedDeltaY = Math.max(-groupBounds.minY, Math.min(deltaY, maxY - groupBounds.maxY));
+  const nextPositions = { ...positions };
+
+  for (const appId of appIds) {
+    nextPositions[appId] = {
+      x: positions[appId].x + clampedDeltaX,
+      y: positions[appId].y + clampedDeltaY,
+    };
+  }
+
+  return nextPositions;
+}
+
+function snapDesktopIconGroup(
+  positions: IconPositionMap,
+  bounds: DOMRect,
+  groupAppIds: AppID[],
+): IconPositionMap {
+  if (groupAppIds.length === 0) {
+    return normalizeDesktopIconPositions(positions, bounds);
+  }
+
+  const nonGroupIds = apps
+    .map((app) => app.id)
+    .filter((appId) => !groupAppIds.includes(appId));
+  const occupied = new Set<string>();
+  const nextPositions = { ...positions };
+
+  for (const appId of nonGroupIds) {
+    const clampedPosition = clampDesktopIconPosition(positions[appId], bounds);
+    const preferredCell = getDesktopGridCell(clampedPosition, bounds);
+    const chosenCell = findNearestAvailableDesktopCell(preferredCell, occupied, bounds);
+    occupied.add(`${chosenCell.column}:${chosenCell.row}`);
+    nextPositions[appId] = getDesktopGridPosition(chosenCell, bounds);
+  }
+
+  const groupCells = groupAppIds.map((appId) => ({
+    appId,
+    cell: getDesktopGridCell(clampDesktopIconPosition(positions[appId], bounds), bounds),
+  }));
+  const minColumn = Math.min(...groupCells.map((item) => item.cell.column));
+  const minRow = Math.min(...groupCells.map((item) => item.cell.row));
+  const groupOffsets = groupCells.map((item) => ({
+    appId: item.appId,
+    columnOffset: item.cell.column - minColumn,
+    rowOffset: item.cell.row - minRow,
+  }));
+  const { columns, rows } = getDesktopGridMetrics(bounds);
+  let bestAnchor = { column: minColumn, row: minRow };
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const fits = groupOffsets.every((offset) => {
+        const targetColumn = column + offset.columnOffset;
+        const targetRow = row + offset.rowOffset;
+        return (
+          targetColumn >= 0 &&
+          targetRow >= 0 &&
+          targetColumn < columns &&
+          targetRow < rows &&
+          !occupied.has(`${targetColumn}:${targetRow}`)
+        );
+      });
+
+      if (!fits) {
+        continue;
+      }
+
+      const anchorTarget = { column, row };
+      const distance =
+        Math.abs(anchorTarget.column - minColumn) +
+        Math.abs(anchorTarget.row - minRow);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestAnchor = anchorTarget;
+      }
+    }
+  }
+
+  for (const offset of groupOffsets) {
+    const targetCell = {
+      column: bestAnchor.column + offset.columnOffset,
+      row: bestAnchor.row + offset.rowOffset,
+    };
+    occupied.add(`${targetCell.column}:${targetCell.row}`);
+    nextPositions[offset.appId] = getDesktopGridPosition(targetCell, bounds);
+  }
+
+  return nextPositions;
+}
+
+function getSelectionBounds(selection: NonNullable<DesktopSelectionState>) {
+  const left = Math.min(selection.startX, selection.currentX);
+  const top = Math.min(selection.startY, selection.currentY);
+  const width = Math.abs(selection.currentX - selection.startX);
+  const height = Math.abs(selection.currentY - selection.startY);
+
+  return { left, top, width, height };
+}
+
+function rectanglesIntersect(
+  left: { left: number; top: number; width: number; height: number },
+  right: { left: number; top: number; width: number; height: number },
+) {
+  return (
+    left.left < right.left + right.width &&
+    left.left + left.width > right.left &&
+    left.top < right.top + right.height &&
+    left.top + left.height > right.top
+  );
 }
 
 function openWallpaperDatabase(): Promise<IDBDatabase> {
@@ -601,6 +748,8 @@ export function Dashboard({
   const [draggingDesktopIcon, setDraggingDesktopIcon] = useState<AppID | null>(null);
   const [desktopIcons, setDesktopIcons] = useState<IconPositionMap>(initialDesktopIcons);
   const [desktopIconsLoaded, setDesktopIconsLoaded] = useState(false);
+  const [selectedDesktopApps, setSelectedDesktopApps] = useState<AppID[]>([]);
+  const [desktopSelection, setDesktopSelection] = useState<DesktopSelectionState>(null);
   const [snapPreview, setSnapPreview] = useState<SnapMode | "maximize" | null>(null);
   const dragStateRef = useRef<DragState>(null);
   const iconDragStateRef = useRef<IconDragState>(null);
@@ -1040,13 +1189,17 @@ export function Dashboard({
         return;
       }
 
-      const nextPosition = clampDesktopIconPosition(
-        {
-          x: event.clientX - desktopBounds.left - dragState.offsetX,
-          y: event.clientY - desktopBounds.top - dragState.offsetY,
-        },
-        desktopBounds,
-      );
+    const nextPosition = clampDesktopIconPosition(
+      {
+        x: event.clientX - desktopBounds.left - dragState.offsetX,
+        y: event.clientY - desktopBounds.top - dragState.offsetY,
+      },
+      desktopBounds,
+    );
+      const draggedAppIds = dragState.appIds;
+      const anchorInitialPosition = dragState.initialPositions[dragState.appId];
+      const deltaX = nextPosition.x - anchorInitialPosition.x;
+      const deltaY = nextPosition.y - anchorInitialPosition.y;
 
       const currentPosition = desktopIconsRef.current[dragState.appId];
       if (
@@ -1057,10 +1210,15 @@ export function Dashboard({
         dragState.moved = true;
       }
 
-      setDesktopIcons((current) => ({
-        ...current,
-        [dragState.appId]: nextPosition,
-      }));
+      setDesktopIcons(
+        translateDesktopIconGroup(
+          dragState.initialPositions,
+          draggedAppIds,
+          deltaX,
+          deltaY,
+          desktopBounds,
+        ),
+      );
     };
 
     const handleIconPointerEnd = (event: PointerEvent) => {
@@ -1076,7 +1234,9 @@ export function Dashboard({
         const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
         if (desktopBounds) {
           setDesktopIcons((current) =>
-            normalizeDesktopIconPositions(current, desktopBounds, dragState.appId),
+            dragState.appIds.length > 1
+              ? snapDesktopIconGroup(current, desktopBounds, dragState.appIds)
+              : normalizeDesktopIconPositions(current, desktopBounds, dragState.appId),
           );
         }
 
@@ -1261,6 +1421,77 @@ export function Dashboard({
     applyCustomWallpaper(customWallpaperUrl);
   };
 
+  const handleDesktopPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0 || event.target !== event.currentTarget) {
+      return;
+    }
+
+    const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+    if (!desktopBounds) {
+      return;
+    }
+
+    const startX = event.clientX - desktopBounds.left;
+    const startY = event.clientY - desktopBounds.top;
+
+    setSelectedDesktopApps([]);
+    setDesktopSelection({
+      pointerId: event.pointerId,
+      startX,
+      startY,
+      currentX: startX,
+      currentY: startY,
+    });
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleDesktopPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (!desktopSelection || desktopSelection.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+    if (!desktopBounds) {
+      return;
+    }
+
+    const nextSelection = {
+      ...desktopSelection,
+      currentX: Math.max(0, Math.min(event.clientX - desktopBounds.left, desktopBounds.width)),
+      currentY: Math.max(0, Math.min(event.clientY - desktopBounds.top, desktopBounds.height)),
+    };
+
+    setDesktopSelection(nextSelection);
+
+    const selectionBounds = getSelectionBounds(nextSelection);
+    const selectedApps = apps
+      .filter((app) =>
+        rectanglesIntersect(selectionBounds, {
+          left: desktopIconsRef.current[app.id].x,
+          top: desktopIconsRef.current[app.id].y,
+          width: DESKTOP_ICON_WIDTH,
+          height: DESKTOP_ICON_HEIGHT,
+        }),
+      )
+      .map((app) => app.id);
+
+    setSelectedDesktopApps(selectedApps);
+  };
+
+  const handleDesktopPointerEnd = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (!desktopSelection || desktopSelection.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setDesktopSelection(null);
+  };
+
   const startDesktopIconDrag = (
     appId: AppID,
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -1275,12 +1506,23 @@ export function Dashboard({
     }
 
     const position = desktopIconsRef.current[appId];
+    const draggedAppIds =
+      selectedDesktopApps.includes(appId) && selectedDesktopApps.length > 0
+        ? selectedDesktopApps
+        : [appId];
+
+    if (!selectedDesktopApps.includes(appId) || selectedDesktopApps.length === 0) {
+      setSelectedDesktopApps([appId]);
+    }
+
     iconDragStateRef.current = {
       appId,
+      appIds: draggedAppIds,
       pointerId: event.pointerId,
       offsetX: event.clientX - desktopBounds.left - position.x,
       offsetY: event.clientY - desktopBounds.top - position.y,
       moved: false,
+      initialPositions: { ...desktopIconsRef.current },
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1293,6 +1535,7 @@ export function Dashboard({
       return;
     }
 
+    setSelectedDesktopApps([appId]);
     await toggleApp(appId);
   };
 
@@ -1640,7 +1883,14 @@ export function Dashboard({
         </header>
 
         <div className="relative flex flex-1 flex-col px-5 py-5">
-          <div ref={desktopAreaRef} className="relative min-h-[420px] flex-1">
+          <div
+            ref={desktopAreaRef}
+            className="relative min-h-[420px] flex-1"
+            onPointerDown={handleDesktopPointerDown}
+            onPointerMove={handleDesktopPointerMove}
+            onPointerUp={handleDesktopPointerEnd}
+            onPointerCancel={handleDesktopPointerEnd}
+          >
             {apps.map((app) => (
               <button
                 key={app.id}
@@ -1661,18 +1911,31 @@ export function Dashboard({
               >
                 <div
                   className={`flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-sm transition ${
-                    activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
+                    selectedDesktopApps.includes(app.id)
+                      ? "border-sky-300/70 bg-sky-400/20 shadow-[0_0_0_1px_rgba(125,211,252,0.35)_inset]"
+                      : activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
                       ? "border-accent/45 bg-accent/15 shadow-[0_0_22px_rgba(56,189,248,0.18)]"
                       : "border-white/10 bg-black/25 group-hover:border-white/20 group-hover:bg-white/10"
                   }`}
                 >
                   {renderAppIcon(app.id)}
                 </div>
-                <span className="max-w-full text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]">
+                <span
+                  className={`max-w-full rounded-md px-1.5 py-0.5 text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] ${
+                    selectedDesktopApps.includes(app.id) ? "bg-sky-400/20" : ""
+                  }`}
+                >
                   {app.label}
                 </span>
               </button>
             ))}
+
+            {desktopSelection ? (
+              <div
+                className="pointer-events-none absolute border border-sky-300/70 bg-sky-400/15 shadow-[0_0_0_1px_rgba(125,211,252,0.25)_inset]"
+                style={getSelectionBounds(desktopSelection)}
+              />
+            ) : null}
           </div>
 
           <div className="pointer-events-none mt-auto flex justify-center pt-10">
