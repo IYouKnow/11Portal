@@ -66,6 +66,21 @@ type DragState = {
   offsetY: number;
 } | null;
 
+type IconPosition = {
+  x: number;
+  y: number;
+};
+
+type IconPositionMap = Record<AppID, IconPosition>;
+
+type IconDragState = {
+  appId: AppID;
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+  moved: boolean;
+} | null;
+
 const apps: DesktopApp[] = [
   {
     id: "chromium",
@@ -132,6 +147,11 @@ const DEFAULT_WALLPAPER = "gradient";
 const CUSTOM_WALLPAPER_STORAGE_MARKER = "__portal_custom_wallpaper__";
 const WALLPAPER_DB_NAME = "portal-wallpapers";
 const WALLPAPER_STORE_NAME = "wallpapers";
+const DESKTOP_ICON_WIDTH = 88;
+const DESKTOP_ICON_HEIGHT = 110;
+const DESKTOP_ICON_MARGIN = 16;
+const DESKTOP_ICON_GAP_X = 16;
+const DESKTOP_ICON_GAP_Y = 6;
 
 const wallpaperPresets = [
   {
@@ -175,6 +195,120 @@ type WallpaperState = {
   image: string;
   overlay: string;
 };
+
+const initialDesktopIcons: IconPositionMap = {
+  chromium: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN },
+  terminal: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 116 },
+  remoteDesktop: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 232 },
+  settings: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 348 },
+};
+
+function clampDesktopIconPosition(position: IconPosition, bounds: DOMRect): IconPosition {
+  const maxX = Math.max(0, bounds.width - DESKTOP_ICON_WIDTH);
+  const maxY = Math.max(0, bounds.height - DESKTOP_ICON_HEIGHT);
+
+  return {
+    x: Math.max(0, Math.min(position.x, maxX)),
+    y: Math.max(0, Math.min(position.y, maxY)),
+  };
+}
+
+function getDesktopGridMetrics(bounds: DOMRect) {
+  const usableWidth = Math.max(DESKTOP_ICON_WIDTH, bounds.width - DESKTOP_ICON_MARGIN * 2);
+  const usableHeight = Math.max(DESKTOP_ICON_HEIGHT, bounds.height - DESKTOP_ICON_MARGIN * 2);
+  const columns = Math.max(
+    1,
+    Math.floor((usableWidth + DESKTOP_ICON_GAP_X) / (DESKTOP_ICON_WIDTH + DESKTOP_ICON_GAP_X)),
+  );
+  const rows = Math.max(
+    1,
+    Math.floor((usableHeight + DESKTOP_ICON_GAP_Y) / (DESKTOP_ICON_HEIGHT + DESKTOP_ICON_GAP_Y)),
+  );
+
+  return { columns, rows };
+}
+
+function getDesktopGridCell(position: IconPosition, bounds: DOMRect) {
+  const { columns, rows } = getDesktopGridMetrics(bounds);
+  const column = Math.max(
+    0,
+    Math.min(
+      columns - 1,
+      Math.round((position.x - DESKTOP_ICON_MARGIN) / (DESKTOP_ICON_WIDTH + DESKTOP_ICON_GAP_X)),
+    ),
+  );
+  const row = Math.max(
+    0,
+    Math.min(
+      rows - 1,
+      Math.round((position.y - DESKTOP_ICON_MARGIN) / (DESKTOP_ICON_HEIGHT + DESKTOP_ICON_GAP_Y)),
+    ),
+  );
+
+  return { column, row };
+}
+
+function getDesktopGridPosition(
+  cell: { column: number; row: number },
+  bounds: DOMRect,
+): IconPosition {
+  return clampDesktopIconPosition(
+    {
+      x: DESKTOP_ICON_MARGIN + cell.column * (DESKTOP_ICON_WIDTH + DESKTOP_ICON_GAP_X),
+      y: DESKTOP_ICON_MARGIN + cell.row * (DESKTOP_ICON_HEIGHT + DESKTOP_ICON_GAP_Y),
+    },
+    bounds,
+  );
+}
+
+function findNearestAvailableDesktopCell(
+  preferredCell: { column: number; row: number },
+  occupied: Set<string>,
+  bounds: DOMRect,
+) {
+  const { columns, rows } = getDesktopGridMetrics(bounds);
+  let bestCell = preferredCell;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const key = `${column}:${row}`;
+      if (occupied.has(key)) {
+        continue;
+      }
+
+      const distance = Math.abs(column - preferredCell.column) + Math.abs(row - preferredCell.row);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestCell = { column, row };
+      }
+    }
+  }
+
+  return bestCell;
+}
+
+function normalizeDesktopIconPositions(
+  positions: IconPositionMap,
+  bounds: DOMRect,
+  prioritizedAppId?: AppID,
+): IconPositionMap {
+  const appOrder = prioritizedAppId
+    ? [prioritizedAppId, ...apps.map((app) => app.id).filter((appId) => appId !== prioritizedAppId)]
+    : apps.map((app) => app.id);
+  const occupied = new Set<string>();
+  const nextPositions = {} as IconPositionMap;
+
+  for (const appId of appOrder) {
+    const clampedPosition = clampDesktopIconPosition(positions[appId], bounds);
+    const preferredCell = getDesktopGridCell(clampedPosition, bounds);
+    const chosenCell = findNearestAvailableDesktopCell(preferredCell, occupied, bounds);
+    occupied.add(`${chosenCell.column}:${chosenCell.row}`);
+    nextPositions[appId] = getDesktopGridPosition(chosenCell, bounds);
+  }
+
+  return nextPositions;
+}
 
 function openWallpaperDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -464,8 +598,15 @@ export function Dashboard({
       "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
   }));
   const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
+  const [draggingDesktopIcon, setDraggingDesktopIcon] = useState<AppID | null>(null);
+  const [desktopIcons, setDesktopIcons] = useState<IconPositionMap>(initialDesktopIcons);
+  const [desktopIconsLoaded, setDesktopIconsLoaded] = useState(false);
   const [snapPreview, setSnapPreview] = useState<SnapMode | "maximize" | null>(null);
   const dragStateRef = useRef<DragState>(null);
+  const iconDragStateRef = useRef<IconDragState>(null);
+  const suppressIconClickRef = useRef<AppID | null>(null);
+  const desktopIconsRef = useRef<IconPositionMap>(initialDesktopIcons);
+  const desktopAreaRef = useRef<HTMLDivElement | null>(null);
   const nextZIndexRef = useRef(4);
 
   const activeWorkspace = useMemo(() => {
@@ -475,6 +616,7 @@ export function Dashboard({
   const chromiumSrc = overview.platform.chromiumURL || "/chromium/";
   const remoteDesktopGatewayURL = overview.platform.remoteDesktopGatewayURL?.trim() || "";
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
+  const desktopIconsStorageKey = `portal.desktop-icons.${user.id}`;
 
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
     const preset = wallpaperPresets.find((item) => item.id === presetId);
@@ -710,6 +852,50 @@ export function Dashboard({
   }, [wallpaperStorageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(desktopIconsStorageKey);
+    if (!raw) {
+      setDesktopIcons(initialDesktopIcons);
+      setDesktopIconsLoaded(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<Record<AppID, Partial<IconPosition>>>;
+
+      setDesktopIcons({
+        chromium: {
+          x: typeof parsed.chromium?.x === "number" ? parsed.chromium.x : initialDesktopIcons.chromium.x,
+          y: typeof parsed.chromium?.y === "number" ? parsed.chromium.y : initialDesktopIcons.chromium.y,
+        },
+        terminal: {
+          x: typeof parsed.terminal?.x === "number" ? parsed.terminal.x : initialDesktopIcons.terminal.x,
+          y: typeof parsed.terminal?.y === "number" ? parsed.terminal.y : initialDesktopIcons.terminal.y,
+        },
+        remoteDesktop: {
+          x: typeof parsed.remoteDesktop?.x === "number"
+            ? parsed.remoteDesktop.x
+            : initialDesktopIcons.remoteDesktop.x,
+          y: typeof parsed.remoteDesktop?.y === "number"
+            ? parsed.remoteDesktop.y
+            : initialDesktopIcons.remoteDesktop.y,
+        },
+        settings: {
+          x: typeof parsed.settings?.x === "number" ? parsed.settings.x : initialDesktopIcons.settings.x,
+          y: typeof parsed.settings?.y === "number" ? parsed.settings.y : initialDesktopIcons.settings.y,
+        },
+      });
+    } catch {
+      setDesktopIcons(initialDesktopIcons);
+    }
+
+    setDesktopIconsLoaded(true);
+  }, [desktopIconsStorageKey]);
+
+  useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -804,6 +990,113 @@ export function Dashboard({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!desktopIconsLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(desktopIconsStorageKey, JSON.stringify(desktopIcons));
+  }, [desktopIcons, desktopIconsLoaded, desktopIconsStorageKey]);
+
+  useEffect(() => {
+    desktopIconsRef.current = desktopIcons;
+  }, [desktopIcons]);
+
+  useEffect(() => {
+    const clampIconsToDesktop = () => {
+      const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+      if (!desktopBounds) {
+        return;
+      }
+
+      setDesktopIcons((current) => normalizeDesktopIconPositions(current, desktopBounds));
+    };
+
+    clampIconsToDesktop();
+    window.addEventListener("resize", clampIconsToDesktop);
+
+    return () => {
+      window.removeEventListener("resize", clampIconsToDesktop);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleIconPointerMove = (event: PointerEvent) => {
+      const dragState = iconDragStateRef.current;
+      const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+      if (!dragState || dragState.pointerId !== event.pointerId || !desktopBounds) {
+        return;
+      }
+
+      if ((event.buttons & 1) !== 1) {
+        iconDragStateRef.current = null;
+        setDraggingDesktopIcon(null);
+        return;
+      }
+
+      const nextPosition = clampDesktopIconPosition(
+        {
+          x: event.clientX - desktopBounds.left - dragState.offsetX,
+          y: event.clientY - desktopBounds.top - dragState.offsetY,
+        },
+        desktopBounds,
+      );
+
+      const currentPosition = desktopIconsRef.current[dragState.appId];
+      if (
+        !dragState.moved &&
+        (Math.abs(nextPosition.x - currentPosition.x) > 4 ||
+          Math.abs(nextPosition.y - currentPosition.y) > 4)
+      ) {
+        dragState.moved = true;
+      }
+
+      setDesktopIcons((current) => ({
+        ...current,
+        [dragState.appId]: nextPosition,
+      }));
+    };
+
+    const handleIconPointerEnd = (event: PointerEvent) => {
+      const dragState = iconDragStateRef.current;
+      if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+      }
+
+      iconDragStateRef.current = null;
+      setDraggingDesktopIcon(null);
+
+      if (dragState.moved) {
+        const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+        if (desktopBounds) {
+          setDesktopIcons((current) =>
+            normalizeDesktopIconPositions(current, desktopBounds, dragState.appId),
+          );
+        }
+
+        suppressIconClickRef.current = dragState.appId;
+        window.setTimeout(() => {
+          if (suppressIconClickRef.current === dragState.appId) {
+            suppressIconClickRef.current = null;
+          }
+        }, 0);
+      }
+    };
+
+    window.addEventListener("pointermove", handleIconPointerMove);
+    window.addEventListener("pointerup", handleIconPointerEnd);
+    window.addEventListener("pointercancel", handleIconPointerEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handleIconPointerMove);
+      window.removeEventListener("pointerup", handleIconPointerEnd);
+      window.removeEventListener("pointercancel", handleIconPointerEnd);
     };
   }, []);
 
@@ -966,6 +1259,41 @@ export function Dashboard({
   const handleWallpaperUrlSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     applyCustomWallpaper(customWallpaperUrl);
+  };
+
+  const startDesktopIconDrag = (
+    appId: AppID,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+    if (!desktopBounds) {
+      return;
+    }
+
+    const position = desktopIconsRef.current[appId];
+    iconDragStateRef.current = {
+      appId,
+      pointerId: event.pointerId,
+      offsetX: event.clientX - desktopBounds.left - position.x,
+      offsetY: event.clientY - desktopBounds.top - position.y,
+      moved: false,
+    };
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggingDesktopIcon(appId);
+  };
+
+  const handleDesktopIconClick = async (appId: AppID) => {
+    if (suppressIconClickRef.current === appId) {
+      suppressIconClickRef.current = null;
+      return;
+    }
+
+    await toggleApp(appId);
   };
 
   const renderWallpaperSection = () => (
@@ -1312,16 +1640,23 @@ export function Dashboard({
         </header>
 
         <div className="relative flex flex-1 flex-col px-5 py-5">
-          <div className="grid auto-rows-max grid-cols-[repeat(auto-fit,minmax(88px,88px))] gap-x-5 gap-y-6 content-start justify-start">
+          <div ref={desktopAreaRef} className="relative min-h-[420px] flex-1">
             {apps.map((app) => (
               <button
                 key={app.id}
-                className={`group flex w-[88px] flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition ${
+                className={`group absolute flex w-[88px] flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition ${
                   app.available
                     ? "hover:bg-white/10 focus-visible:bg-white/10"
                     : "opacity-50"
+                } ${
+                  draggingDesktopIcon === app.id ? "cursor-grabbing" : "cursor-grab"
                 }`}
-                onClick={app.available ? () => void toggleApp(app.id) : undefined}
+                onClick={app.available ? () => void handleDesktopIconClick(app.id) : undefined}
+                onPointerDown={app.available ? (event) => startDesktopIconDrag(app.id, event) : undefined}
+                style={{
+                  left: desktopIcons[app.id].x,
+                  top: desktopIcons[app.id].y,
+                }}
                 type="button"
               >
                 <div

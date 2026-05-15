@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -212,6 +213,14 @@ func (h *RemoteDesktopHandler) Launch(c *fiber.Ctx) error {
 
 	launchURL, connectionID, err := h.guacamole.LaunchSession(c.UserContext(), userID, profile, sessionUsername, password)
 	if err != nil {
+		log.Printf(
+			"remote desktop launch failed: user_id=%d profile_id=%d host=%s port=%d err=%v",
+			userID,
+			profile.ID,
+			profile.Host,
+			profile.Port,
+			err,
+		)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
 			"error": "failed to launch remote desktop session",
 		})
