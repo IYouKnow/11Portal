@@ -1,6 +1,6 @@
 services:
   portal:
-    image: ghcr.io/iyouknow/portal:v0.1.4
+    image: ghcr.io/iyouknow/portal:latest
     restart: unless-stopped
     depends_on:
       chromium:
@@ -71,7 +71,7 @@ services:
       - portal-net
 
   guacamole-db:
-    image: postgres:16-alpine
+    image: postgres:latest
     restart: unless-stopped
     environment:
       - POSTGRES_DB=${GUACAMOLE_POSTGRES_DB-guacamole_db}
@@ -92,7 +92,7 @@ services:
       - portal-net
 
   guacamole-db-init:
-    image: postgres:16-alpine
+    image: postgres:latest
     restart: "no"
     depends_on:
       guacamole-db:
@@ -114,8 +114,8 @@ services:
           exit 0
         fi
 
-        wget -qO /tmp/001-create-schema.sql https://raw.githubusercontent.com/apache/guacamole-client/1.6.0/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/001-create-schema.sql
-        wget -qO /tmp/002-create-admin-user.sql https://raw.githubusercontent.com/apache/guacamole-client/1.6.0/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/002-create-admin-user.sql
+        wget -qO /tmp/001-create-schema.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/001-create-schema.sql
+        wget -qO /tmp/002-create-admin-user.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/002-create-admin-user.sql
 
         psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/001-create-schema.sql
         psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/002-create-admin-user.sql
@@ -123,13 +123,13 @@ services:
       - portal-net
 
   guacd:
-    image: guacamole/guacd:1.6.0
+    image: guacamole/guacd:latest
     restart: unless-stopped
     networks:
       - portal-net
 
   guacamole:
-    image: guacamole/guacamole:1.6.0
+    image: guacamole/guacamole:latest
     restart: unless-stopped
     depends_on:
       guacamole-db:

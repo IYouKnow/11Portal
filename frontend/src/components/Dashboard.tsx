@@ -159,7 +159,7 @@ const WALLPAPER_DB_NAME = "portal-wallpapers";
 const WALLPAPER_STORE_NAME = "wallpapers";
 const DESKTOP_ICON_WIDTH = 88;
 const DESKTOP_ICON_HEIGHT = 110;
-const DESKTOP_ICON_MARGIN = 16;
+const DESKTOP_ICON_MARGIN = 10;
 const DESKTOP_ICON_GAP_X = 16;
 const DESKTOP_ICON_GAP_Y = 6;
 
@@ -1882,10 +1882,10 @@ export function Dashboard({
           </div>
         </header>
 
-        <div className="relative flex flex-1 flex-col px-5 py-5">
+        <div className="relative flex flex-1 flex-col pb-24 pt-3">
           <div
             ref={desktopAreaRef}
-            className="relative min-h-[420px] flex-1"
+            className="relative min-h-0 flex-1"
             onPointerDown={handleDesktopPointerDown}
             onPointerMove={handleDesktopPointerMove}
             onPointerUp={handleDesktopPointerEnd}
@@ -1938,7 +1938,7 @@ export function Dashboard({
             ) : null}
           </div>
 
-          <div className="pointer-events-none mt-auto flex justify-center pt-10">
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
             <div className="pointer-events-auto flex items-end gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
               {apps.map((app) => (
                 <button
