@@ -91,6 +91,8 @@ type DesktopSelectionState = {
   currentY: number;
 } | null;
 
+type DesktopLaunchMode = "single" | "double";
+
 const apps: DesktopApp[] = [
   {
     id: "chromium",
@@ -748,6 +750,8 @@ export function Dashboard({
   const [draggingDesktopIcon, setDraggingDesktopIcon] = useState<AppID | null>(null);
   const [desktopIcons, setDesktopIcons] = useState<IconPositionMap>(initialDesktopIcons);
   const [desktopIconsLoaded, setDesktopIconsLoaded] = useState(false);
+  const [desktopLaunchMode, setDesktopLaunchMode] =
+    useState<DesktopLaunchMode>("double");
   const [selectedDesktopApps, setSelectedDesktopApps] = useState<AppID[]>([]);
   const [desktopSelection, setDesktopSelection] = useState<DesktopSelectionState>(null);
   const [snapPreview, setSnapPreview] = useState<SnapMode | "maximize" | null>(null);
@@ -766,6 +770,7 @@ export function Dashboard({
   const remoteDesktopGatewayURL = overview.platform.remoteDesktopGatewayURL?.trim() || "";
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
   const desktopIconsStorageKey = `portal.desktop-icons.${user.id}`;
+  const desktopLaunchModeStorageKey = `portal.desktop-launch-mode.${user.id}`;
 
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
     const preset = wallpaperPresets.find((item) => item.id === presetId);
@@ -1045,6 +1050,20 @@ export function Dashboard({
   }, [desktopIconsStorageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(desktopLaunchModeStorageKey);
+    if (raw === "single" || raw === "double") {
+      setDesktopLaunchMode(raw);
+      return;
+    }
+
+    setDesktopLaunchMode("double");
+  }, [desktopLaunchModeStorageKey]);
+
+  useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -1152,6 +1171,14 @@ export function Dashboard({
 
     window.localStorage.setItem(desktopIconsStorageKey, JSON.stringify(desktopIcons));
   }, [desktopIcons, desktopIconsLoaded, desktopIconsStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(desktopLaunchModeStorageKey, desktopLaunchMode);
+  }, [desktopLaunchMode, desktopLaunchModeStorageKey]);
 
   useEffect(() => {
     desktopIconsRef.current = desktopIcons;
@@ -1536,6 +1563,20 @@ export function Dashboard({
     }
 
     setSelectedDesktopApps([appId]);
+    if (desktopLaunchMode !== "single") {
+      return;
+    }
+
+    await toggleApp(appId);
+  };
+
+  const handleDesktopIconDoubleClick = async (appId: AppID) => {
+    if (suppressIconClickRef.current === appId) {
+      suppressIconClickRef.current = null;
+      return;
+    }
+
+    setSelectedDesktopApps([appId]);
     await toggleApp(appId);
   };
 
@@ -1631,6 +1672,60 @@ export function Dashboard({
     </section>
   );
 
+  const renderDesktopBehaviorSection = () => (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-muted">
+            Desktop
+          </p>
+          <h2 className="mt-2 text-xl font-medium text-ink">App launch</h2>
+        </div>
+        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-muted">
+          Default: double click
+        </span>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-muted">
+        Choose how desktop apps open when you select them.
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20 hover:bg-white/5">
+          <input
+            checked={desktopLaunchMode === "double"}
+            className="mt-1 h-4 w-4 accent-sky-400"
+            name="desktop-launch-mode"
+            onChange={() => setDesktopLaunchMode("double")}
+            type="radio"
+          />
+          <div>
+            <p className="text-sm font-medium text-ink">Double click</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              First click selects the app. Second click opens it.
+            </p>
+          </div>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20 hover:bg-white/5">
+          <input
+            checked={desktopLaunchMode === "single"}
+            className="mt-1 h-4 w-4 accent-sky-400"
+            name="desktop-launch-mode"
+            onChange={() => setDesktopLaunchMode("single")}
+            type="radio"
+          />
+          <div>
+            <p className="text-sm font-medium text-ink">Single click</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Clicking an app selects it and opens it right away.
+            </p>
+          </div>
+        </label>
+      </div>
+    </section>
+  );
+
   const renderSettingsContent = () => (
     <div className="grid h-[calc(100%-32px)] grid-cols-[220px_1fr] bg-[#06080d]">
       <aside className="border-r border-white/10 bg-black/30 p-4">
@@ -1654,6 +1749,7 @@ export function Dashboard({
 
       <div className="overflow-auto p-5">
         {renderWallpaperSection()}
+        <div className="mt-4">{renderDesktopBehaviorSection()}</div>
 
         {isAdmin ? (
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -1896,12 +1992,19 @@ export function Dashboard({
                 key={app.id}
                 className={`group absolute flex w-[88px] flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition ${
                   app.available
-                    ? "hover:bg-white/10 focus-visible:bg-white/10"
+                    ? selectedDesktopApps.includes(app.id)
+                      ? "bg-white/10"
+                      : "hover:bg-white/10 focus-visible:bg-white/10"
                     : "opacity-50"
-                } ${
+                } select-none ${
                   draggingDesktopIcon === app.id ? "cursor-grabbing" : "cursor-grab"
                 }`}
                 onClick={app.available ? () => void handleDesktopIconClick(app.id) : undefined}
+                onDoubleClick={
+                  app.available && desktopLaunchMode === "double"
+                    ? () => void handleDesktopIconDoubleClick(app.id)
+                    : undefined
+                }
                 onPointerDown={app.available ? (event) => startDesktopIconDrag(app.id, event) : undefined}
                 style={{
                   left: desktopIcons[app.id].x,
@@ -1912,7 +2015,7 @@ export function Dashboard({
                 <div
                   className={`flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-sm transition ${
                     selectedDesktopApps.includes(app.id)
-                      ? "border-sky-300/70 bg-sky-400/20 shadow-[0_0_0_1px_rgba(125,211,252,0.35)_inset]"
+                      ? "border-white/20 bg-white/10"
                       : activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
                       ? "border-accent/45 bg-accent/15 shadow-[0_0_22px_rgba(56,189,248,0.18)]"
                       : "border-white/10 bg-black/25 group-hover:border-white/20 group-hover:bg-white/10"
@@ -1921,9 +2024,7 @@ export function Dashboard({
                   {renderAppIcon(app.id)}
                 </div>
                 <span
-                  className={`max-w-full rounded-md px-1.5 py-0.5 text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] ${
-                    selectedDesktopApps.includes(app.id) ? "bg-sky-400/20" : ""
-                  }`}
+                  className="max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
                 >
                   {app.label}
                 </span>
