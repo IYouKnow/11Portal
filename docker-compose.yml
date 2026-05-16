@@ -12,23 +12,11 @@ services:
       guacamole-db:
         condition: service_healthy
     environment:
-      - PORTAL_ADMIN_EMAIL=${PORTAL_ADMIN_EMAIL-admin@portal.local}
-      - PORTAL_ADMIN_PASSWORD=${PORTAL_ADMIN_PASSWORD-change-me-now}
-      - PORTAL_DB_PATH=/app/data/portal.db
-      - PORTAL_HTTP_ADDR=:8080
-      - PORTAL_SESSION_COOKIE_NAME=portal_session
-      - PORTAL_SESSION_TTL_HOURS=24
-      - PORTAL_SHELL=/bin/sh
-      - PORTAL_WORKSPACES_ROOT=/workspaces
-      - PORTAL_WEB_ROOT=/app/public
-      - PORTAL_PUBLIC_URL=${PORTAL_PUBLIC_URL-http://localhost:38480}
-      - PORTAL_FRONTEND_ORIGIN=${PORTAL_FRONTEND_ORIGIN-http://localhost:38480}
-      - PORTAL_CHROMIUM_INTERNAL_URL=${PORTAL_CHROMIUM_INTERNAL_URL-https://chromium:3001/chromium}
-      - PORTAL_CHROMIUM_PUBLIC_URL=${PORTAL_CHROMIUM_PUBLIC_URL-/chromium/}
-      - PORTAL_GUACAMOLE_INTERNAL_URL=${PORTAL_GUACAMOLE_INTERNAL_URL-http://guacamole:8080/guacamole}
-      - PORTAL_GUACAMOLE_ADMIN_USERNAME=${PORTAL_GUACAMOLE_ADMIN_USERNAME-portaladmin}
-      - PORTAL_GUACAMOLE_ADMIN_PASSWORD=${PORTAL_GUACAMOLE_ADMIN_PASSWORD-change-me-guacadmin}
-      - PORTAL_GUACAMOLE_DATA_SOURCE=${PORTAL_GUACAMOLE_DATA_SOURCE-postgresql}
+      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL-admin@portal.local}
+      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD-change-me-now}
+      PORTAL_DB_PATH: /app/data/portal.db
+      PORTAL_PUBLIC_URL: ${PORTAL_PUBLIC_URL-http://localhost:38480}
+      PORTAL_FRONTEND_ORIGIN: ${PORTAL_FRONTEND_ORIGIN-http://localhost:38480}
     ports:
       - "38480:8080"
     volumes:
@@ -43,25 +31,25 @@ services:
     restart: unless-stopped
     shm_size: "1gb"
     environment:
-      - PUID=${PUID-1000}
-      - PGID=${PGID-1000}
-      - TZ=${TZ-Etc/UTC}
-      - SUBFOLDER=/chromium/
-      - TITLE=Portal Chromium
-      - SELKIES_UI_TITLE=Portal
-      - SELKIES_UI_SHOW_LOGO=false|locked
-      - SELKIES_UI_SHOW_SIDEBAR=false|locked
-      - SELKIES_UI_SHOW_CORE_BUTTONS=false|locked
-      - SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON=false|locked
-      - SELKIES_ENABLE_SHARING=false|locked
-      - SELKIES_GAMEPAD_ENABLED=false|locked
-      - START_DOCKER=false
-      - HARDEN_DESKTOP=true
-      - RESTART_APP=false
-      - NO_DECOR=true
-      - NO_FULL=true
-      - DISABLE_IPV6=true
-      - CHROME_CLI=--disable-background-networking --disable-component-update --disable-default-apps --disable-extensions --disable-features=MediaRouter,OptimizationHints,Translate --disable-sync --no-default-browser-check --no-first-run --password-store=basic
+      PUID: ${PUID-1000}
+      PGID: ${PGID-1000}
+      TZ: ${TZ-Etc/UTC}
+      SUBFOLDER: /chromium/
+      TITLE: Portal Chromium
+      SELKIES_UI_TITLE: Portal
+      SELKIES_UI_SHOW_LOGO: false|locked
+      SELKIES_UI_SHOW_SIDEBAR: false|locked
+      SELKIES_UI_SHOW_CORE_BUTTONS: false|locked
+      SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON: false|locked
+      SELKIES_ENABLE_SHARING: false|locked
+      SELKIES_GAMEPAD_ENABLED: false|locked
+      START_DOCKER: false
+      HARDEN_DESKTOP: true
+      RESTART_APP: false
+      NO_DECOR: true
+      NO_FULL: true
+      DISABLE_IPV6: true
+      CHROME_CLI: --disable-background-networking --disable-component-update --disable-default-apps --disable-extensions --disable-features=MediaRouter,OptimizationHints,Translate --disable-sync --no-default-browser-check --no-first-run --password-store=basic
     ports:
       - "38481:3001"
       - "38482:3000"
@@ -74,9 +62,9 @@ services:
     image: postgres:latest
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=${GUACAMOLE_POSTGRES_DB-guacamole_db}
-      - POSTGRES_USER=${GUACAMOLE_POSTGRES_USER-guacamole_user}
-      - POSTGRES_PASSWORD=${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
+      POSTGRES_DB: ${GUACAMOLE_POSTGRES_DB-guacamole_db}
+      POSTGRES_USER: ${GUACAMOLE_POSTGRES_USER-guacamole_user}
+      POSTGRES_PASSWORD: ${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
     healthcheck:
       test:
         [
@@ -98,9 +86,9 @@ services:
       guacamole-db:
         condition: service_healthy
     environment:
-      - POSTGRES_DB=${GUACAMOLE_POSTGRES_DB-guacamole_db}
-      - POSTGRES_USER=${GUACAMOLE_POSTGRES_USER-guacamole_user}
-      - PGPASSWORD=${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
+      POSTGRES_DB: ${GUACAMOLE_POSTGRES_DB-guacamole_db}
+      POSTGRES_USER: ${GUACAMOLE_POSTGRES_USER-guacamole_user}
+      PGPASSWORD: ${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
     command:
       - /bin/sh
       - -ec
@@ -139,11 +127,11 @@ services:
       guacd:
         condition: service_started
     environment:
-      - GUACD_HOSTNAME=guacd
-      - POSTGRESQL_HOSTNAME=guacamole-db
-      - POSTGRESQL_DATABASE=${GUACAMOLE_POSTGRES_DB-guacamole_db}
-      - POSTGRESQL_USERNAME=${GUACAMOLE_POSTGRES_USER-guacamole_user}
-      - POSTGRESQL_PASSWORD=${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: guacamole-db
+      POSTGRESQL_DATABASE: ${GUACAMOLE_POSTGRES_DB-guacamole_db}
+      POSTGRESQL_USERNAME: ${GUACAMOLE_POSTGRES_USER-guacamole_user}
+      POSTGRESQL_PASSWORD: ${GUACAMOLE_POSTGRES_PASSWORD-change-me-guacdb}
     networks:
       - portal-net
 

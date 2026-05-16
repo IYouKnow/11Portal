@@ -14,7 +14,7 @@ Portal is a self-hosted browser workspace platform with a React frontend, a Go/F
 ## Quick Start
 
 1. Copy `.env.example` to `.env`.
-2. Set strong values for `PORTAL_ADMIN_PASSWORD`, `PORTAL_GUACAMOLE_ADMIN_PASSWORD`, and `GUACAMOLE_POSTGRES_PASSWORD`.
+2. Set strong values for `PORTAL_ADMIN_PASSWORD` and `GUACAMOLE_POSTGRES_PASSWORD`.
 3. Start everything:
 
 ```bash
@@ -92,10 +92,10 @@ These environment variables drive the integration:
 
 ```env
 PORTAL_GUACAMOLE_INTERNAL_URL=http://guacamole:8080/guacamole
-PORTAL_GUACAMOLE_ADMIN_USERNAME=portaladmin
-PORTAL_GUACAMOLE_ADMIN_PASSWORD=change-me-guacadmin
 PORTAL_GUACAMOLE_DATA_SOURCE=postgresql
 ```
+
+By default, Portal reuses `PORTAL_ADMIN_EMAIL` and `PORTAL_ADMIN_PASSWORD` as the Guacamole admin credentials. You only need `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD` if you want Guacamole to use a different admin account.
 
 The bundled `docker-compose.yml` adds:
 
@@ -143,5 +143,6 @@ The backend responds with a Portal-local Guacamole launch URL that the frontend 
 ## Notes
 
 - The backend will bootstrap the configured Guacamole admin user from the default `guacadmin` account if needed on first startup.
-- If you already changed the default Guacamole admin credentials manually, set `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD` to those values.
+- By default, the configured Guacamole admin user is the same as `PORTAL_ADMIN_EMAIL` with the same password.
+- If you want Guacamole to use a different admin account, set `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD`.
 - The Portal database and the Guacamole database are separate on purpose.

@@ -32,6 +32,8 @@ type Config struct {
 func Load() Config {
 	publicURL := envOrDefault("PORTAL_PUBLIC_URL", "http://localhost:8080")
 	legacyChromiumURL := envOrDefault("PORTAL_CHROMIUM_URL", "https://chromium:3001/chromium")
+	adminEmail := envOrDefault("PORTAL_ADMIN_EMAIL", "admin@portal.local")
+	adminPassword := envOrDefault("PORTAL_ADMIN_PASSWORD", "change-me-now")
 
 	chromiumInternalURL := envOrDefault("PORTAL_CHROMIUM_INTERNAL_URL", legacyChromiumURL)
 	chromiumPublicURL := envOrDefault("PORTAL_CHROMIUM_PUBLIC_URL", "")
@@ -49,8 +51,8 @@ func Load() Config {
 		FrontendOrigin:         envOrDefault("PORTAL_FRONTEND_ORIGIN", "http://localhost:5173"),
 		SessionCookieName:      envOrDefault("PORTAL_SESSION_COOKIE_NAME", "portal_session"),
 		SessionTTLHours:        envOrDefaultInt("PORTAL_SESSION_TTL_HOURS", 24),
-		AdminEmail:             envOrDefault("PORTAL_ADMIN_EMAIL", "admin@portal.local"),
-		AdminPassword:          envOrDefault("PORTAL_ADMIN_PASSWORD", "change-me-now"),
+		AdminEmail:             adminEmail,
+		AdminPassword:          adminPassword,
 		DBPath:                 envOrDefault("PORTAL_DB_PATH", "./data/portal.db"),
 		Shell:                  envOrDefault("PORTAL_SHELL", "/bin/sh"),
 		WorkspacesRoot:         envOrDefault("PORTAL_WORKSPACES_ROOT", "/workspaces"),
@@ -58,8 +60,8 @@ func Load() Config {
 		ChromiumInternalURL:    chromiumInternalURL,
 		ChromiumPublicURL:      chromiumPublicURL,
 		GuacamoleInternalURL:   envOrDefault("PORTAL_GUACAMOLE_INTERNAL_URL", "http://guacamole:8080/guacamole"),
-		GuacamoleAdminUsername: envOrDefault("PORTAL_GUACAMOLE_ADMIN_USERNAME", ""),
-		GuacamoleAdminPassword: envOrDefault("PORTAL_GUACAMOLE_ADMIN_PASSWORD", ""),
+		GuacamoleAdminUsername: envOrDefault("PORTAL_GUACAMOLE_ADMIN_USERNAME", adminEmail),
+		GuacamoleAdminPassword: envOrDefault("PORTAL_GUACAMOLE_ADMIN_PASSWORD", adminPassword),
 		GuacamoleDataSource:    envOrDefault("PORTAL_GUACAMOLE_DATA_SOURCE", "postgresql"),
 		TerminalIdleMinutes:    envOrDefaultInt("PORTAL_TERMINAL_IDLE_MINUTES", 30),
 		WebRoot:                envOrDefault("PORTAL_WEB_ROOT", "/app/public"),
