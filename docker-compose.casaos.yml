@@ -27,8 +27,8 @@ services:
     ports:
       - "38480:8080"
     volumes:
-      - /DATA/AppData/$AppID/data:/app/data
-      - /DATA/AppData/$AppID/workspaces:/workspaces
+      - /DATA/AppData/portal/data:/app/data
+      - /DATA/AppData/portal/workspaces:/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - portal-net
@@ -70,13 +70,16 @@ services:
       DISABLE_IPV6: "true"
       CHROME_CLI: --disable-background-networking --disable-component-update --disable-default-apps --disable-extensions --disable-features=MediaRouter,OptimizationHints,Translate --disable-sync --no-default-browser-check --no-first-run --password-store=basic
     volumes:
-      - /DATA/AppData/$AppID/chromium:/config
+      - /DATA/AppData/portal/chromium:/config
     networks:
       - portal-net
 
   guacamole-db:
     image: postgres:17.4
     restart: unless-stopped
+    depends_on:
+      guacamole-init:
+        condition: service_healthy
     environment:
       POSTGRES_DB: guacamole_db
       POSTGRES_USER: guacamole_user
@@ -89,38 +92,34 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - /DATA/AppData/$AppID/guacamole-postgres:/var/lib/postgresql/data
+      - /DATA/AppData/portal/guacamole-postgres:/var/lib/postgresql/data
+      - /DATA/AppData/portal/guacamole-init:/docker-entrypoint-initdb.d:ro
     networks:
       - portal-net
 
-  guacamole-db-init:
-    image: postgres:17.4
-    restart: "no"
-    depends_on:
-      guacamole-db:
-        condition: service_healthy
-    environment:
-      POSTGRES_DB: guacamole_db
-      POSTGRES_USER: guacamole_user
-      PGPASSWORD: change-me-guacdb
+  guacamole-init:
+    image: guacamole/guacamole:latest
+    restart: unless-stopped
     entrypoint:
       - /bin/sh
       - -ec
       - |
-        until pg_isready -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"; do
-          sleep 2
-        done
-
-        if psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'guacamole_user'" | grep -q 1; then
-          echo "Guacamole schema already present; skipping init."
-          exit 0
+        mkdir -p /init
+        if [ -s /init/initdb.sql ]; then
+          echo "Guacamole schema already generated; helper ready."
+          exec tail -f /dev/null
         fi
-
-        wget -qO /tmp/001-create-schema.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/001-create-schema.sql
-        wget -qO /tmp/002-create-admin-user.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/002-create-admin-user.sql
-
-        psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/001-create-schema.sql
-        psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/002-create-admin-user.sql
+        /opt/guacamole/bin/initdb.sh --postgresql > /init/initdb.sql
+        exec tail -f /dev/null
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -s /init/initdb.sql
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - /DATA/AppData/portal/guacamole-init:/init
     networks:
       - portal-net
 
@@ -136,8 +135,6 @@ services:
     depends_on:
       guacamole-db:
         condition: service_healthy
-      guacamole-db-init:
-        condition: service_completed_successfully
       guacd:
         condition: service_started
     environment:
