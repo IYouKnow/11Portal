@@ -1,6 +1,7 @@
 import {
   type FormEvent,
   type ChangeEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
@@ -1406,6 +1407,10 @@ export function Dashboard({
     event.stopPropagation();
   };
 
+  const stopWindowControlMouse = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+  };
+
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsCreatingUser(true);
@@ -2156,6 +2161,7 @@ export function Dashboard({
                     <button
                       className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
                       onClick={() => minimizeApp(app.id)}
+                      onMouseDown={stopWindowControlMouse}
                       onPointerDown={stopWindowControlPointer}
                       type="button"
                     >
@@ -2164,6 +2170,7 @@ export function Dashboard({
                     <button
                       className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
                       onClick={() => toggleMaximize(app.id)}
+                      onMouseDown={stopWindowControlMouse}
                       onPointerDown={stopWindowControlPointer}
                       type="button"
                     >
@@ -2213,6 +2220,7 @@ export function Dashboard({
                     <button
                       className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
                       onClick={() => void closeApp(app.id)}
+                      onMouseDown={stopWindowControlMouse}
                       onPointerDown={stopWindowControlPointer}
                       type="button"
                     >

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -12,7 +12,6 @@ export function TerminalPanel({ active }: TerminalPanelProps) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const [status, setStatus] = useState<"connecting" | "online" | "offline" | "error">("connecting");
 
   const websocketURL = useMemo(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -51,10 +50,8 @@ export function TerminalPanel({ active }: TerminalPanelProps) {
     socketRef.current = socket;
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
-    setStatus("connecting");
 
     socket.addEventListener("open", () => {
-      setStatus("online");
       terminal.writeln("\r\nConnected. Type commands directly (e.g. ssh user@host).\r\n");
       terminal.focus();
     });
@@ -64,12 +61,10 @@ export function TerminalPanel({ active }: TerminalPanelProps) {
     });
 
     socket.addEventListener("close", () => {
-      setStatus("offline");
       terminal.writeln("\r\nSession closed.");
     });
 
     socket.addEventListener("error", () => {
-      setStatus("error");
       terminal.writeln("\r\nConnection error.");
     });
 
@@ -101,19 +96,10 @@ export function TerminalPanel({ active }: TerminalPanelProps) {
   }, [active, websocketURL]);
 
   return (
-    <div className="h-[calc(100%-32px)] w-full bg-black/80 p-2">
-      <div className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-black/80">
-        <div className="flex items-center gap-2 border-b border-white/10 bg-black/50 px-3 py-2">
-          <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Terminal</span>
-          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] uppercase text-slate-300">
-            {status}
-          </span>
-        </div>
-
-        <div className="h-full w-full p-2">
-          <div className="h-full w-full rounded-md border border-white/10 bg-black p-2">
-            <div className="h-full w-full" ref={hostRef} />
-          </div>
+    <div className="h-[calc(100%-32px)] w-full bg-[#05070c]">
+      <div className="flex h-full flex-col overflow-hidden bg-[#05070c]">
+        <div className="h-full w-full px-3 pb-3 pt-3">
+          <div className="h-full w-full" ref={hostRef} />
         </div>
       </div>
     </div>
