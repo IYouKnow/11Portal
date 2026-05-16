@@ -3,6 +3,7 @@ package httpserver
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -48,6 +49,10 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	guacamoleClient, err := guacamole.NewClient(cfg)
 	if err != nil {
 		log.Printf("WARNING: failed to configure guacamole client: %v", err)
+	}
+	chromiumProxyHandler, err := handlers.NewChromiumProxyHandler(cfg.ChromiumInternalURL)
+	if err != nil {
+		log.Printf("WARNING: failed to configure chromium proxy: %v", err)
 	}
 	guacamoleProxyHandler, err := handlers.NewGuacamoleProxyHandler(cfg)
 	if err != nil {
@@ -118,25 +123,51 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		)
 	}
 
-	if chromiumURL, err := url.Parse(cfg.ChromiumInternalURL); err == nil && shouldProxyChromium(cfg) {
-		chromiumProxy := httputil.NewSingleHostReverseProxy(chromiumURL)
-		originalDirector := chromiumProxy.Director
-		chromiumProxy.Director = func(req *http.Request) {
-			originalDirector(req)
-			req.Host = chromiumURL.Host
-			req.Header.Set("Host", chromiumURL.Host)
-		}
-		chromiumProxy.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		chromiumProxy.ModifyResponse = func(resp *http.Response) error {
-			location := resp.Header.Get("Location")
-			if location != "" && strings.Contains(location, "/chromium") {
-				resp.Header.Set("Location", strings.Replace(location, chromiumURL.String(), "", 1))
+	if chromiumProxyHandler != nil && chromiumProxyHandler.Enabled() && shouldProxyChromium(cfg) {
+		app.Use(
+			"/chromium/websockets",
+			middleware.RequireSession(cfg, dataStore),
+			chromiumProxyHandler.PrepareWebSocket,
+		)
+		app.Get(
+			"/chromium/websockets",
+			websocket.New(chromiumProxyHandler.WebSocket, websocket.Config{
+				Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
+			}),
+		)
+
+		app.Use("/chromium", middleware.RequireSession(cfg, dataStore), func(c *fiber.Ctx) error {
+			upstreamURL := chromiumProxyHandler.BuildUpstreamHTTPRequestURL(c.Path())
+			if upstreamURL == "" {
+				return fiber.ErrBadGateway
 			}
-			return nil
-		}
-		app.Use("/chromium", middleware.RequireSession(cfg, dataStore), adaptor.HTTPHandler(chromiumProxy))
+
+			return adaptor.HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, upstreamURL, r.Body)
+				if err != nil {
+					http.Error(w, "failed to build upstream request", http.StatusBadGateway)
+					return
+				}
+
+				proxyReq.Header = r.Header.Clone()
+				proxyReq.Host = proxyReq.URL.Host
+				proxyReq.Header.Set("Host", proxyReq.URL.Host)
+				proxyReq.Header.Set("X-Forwarded-Host", r.Host)
+				proxyReq.Header.Set("X-Forwarded-Proto", forwardedProto(r))
+				proxyReq.Header.Set("X-Forwarded-For", forwardedFor(r))
+
+				resp, err := insecureHTTPClient.Do(proxyReq)
+				if err != nil {
+					http.Error(w, "failed to reach chromium upstream", http.StatusBadGateway)
+					return
+				}
+				defer resp.Body.Close()
+
+				copyResponseHeaders(w.Header(), resp.Header)
+				w.WriteHeader(resp.StatusCode)
+				_, _ = io.Copy(w, resp.Body)
+			}))(c)
+		})
 	}
 
 	if guacamoleProxy, err := buildGuacamoleProxy(cfg); err == nil {
@@ -155,6 +186,20 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	}
 
 	return app
+}
+
+var insecureHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	},
+}
+
+func copyResponseHeaders(dst, src http.Header) {
+	for key, values := range src {
+		for _, value := range values {
+			dst.Add(key, value)
+		}
+	}
 }
 
 func buildGuacamoleProxy(cfg config.Config) (http.Handler, error) {
@@ -234,5 +279,12 @@ func shouldProxyChromium(cfg config.Config) bool {
 		return true
 	}
 
-	return publicChromiumURL == publicURL+"/chromium" || publicChromiumURL == publicURL+"/chromium/"
+	switch publicChromiumURL {
+	case "/chromium", "/chromium/":
+		return true
+	case publicURL + "/chromium", publicURL + "/chromium/":
+		return true
+	default:
+		return false
+	}
 }
