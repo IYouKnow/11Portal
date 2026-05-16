@@ -1,0 +1,173 @@
+name: portal
+services:
+  portal:
+    image: ghcr.io/iyouknow/portal:latest
+    restart: unless-stopped
+    depends_on:
+      chromium:
+        condition: service_started
+      guacamole:
+        condition: service_started
+      guacd:
+        condition: service_started
+      guacamole-db:
+        condition: service_healthy
+    environment:
+      PORTAL_ADMIN_EMAIL: admin@portal.local
+      PORTAL_ADMIN_PASSWORD: change-me-now
+      PORTAL_DB_PATH: /app/data/portal.db
+      PORTAL_PUBLIC_URL: http://localhost:38480
+      PORTAL_FRONTEND_ORIGIN: http://localhost:38480
+      PORTAL_CHROMIUM_INTERNAL_URL: https://chromium:3001/chromium
+      PORTAL_CHROMIUM_PUBLIC_URL: /chromium/
+      PORTAL_GUACAMOLE_INTERNAL_URL: http://guacamole:8080/guacamole
+      PORTAL_GUACAMOLE_ADMIN_USERNAME: portaladmin
+      PORTAL_GUACAMOLE_ADMIN_PASSWORD: change-me-guacadmin
+      PORTAL_GUACAMOLE_DATA_SOURCE: postgresql
+    ports:
+      - "38480:8080"
+    volumes:
+      - /DATA/AppData/$AppID/data:/app/data
+      - /DATA/AppData/$AppID/workspaces:/workspaces
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - portal-net
+    x-casaos:
+      ports:
+        - container: "8080"
+          description:
+            en_US: Portal web interface
+      volumes:
+        - container: /app/data
+          description:
+            en_US: Portal database and persistent data
+        - container: /workspaces
+          description:
+            en_US: Workspace files available inside Portal
+
+  chromium:
+    image: lscr.io/linuxserver/ungoogled-chromium:latest
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      PUID: $PUID
+      PGID: $PGID
+      TZ: $TZ
+      SUBFOLDER: /chromium/
+      TITLE: Portal Chromium
+      SELKIES_UI_TITLE: Portal
+      SELKIES_UI_SHOW_LOGO: false|locked
+      SELKIES_UI_SHOW_SIDEBAR: false|locked
+      SELKIES_UI_SHOW_CORE_BUTTONS: false|locked
+      SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON: false|locked
+      SELKIES_ENABLE_SHARING: false|locked
+      SELKIES_GAMEPAD_ENABLED: false|locked
+      START_DOCKER: "false"
+      HARDEN_DESKTOP: "true"
+      RESTART_APP: "false"
+      NO_DECOR: "true"
+      NO_FULL: "true"
+      DISABLE_IPV6: "true"
+      CHROME_CLI: --disable-background-networking --disable-component-update --disable-default-apps --disable-extensions --disable-features=MediaRouter,OptimizationHints,Translate --disable-sync --no-default-browser-check --no-first-run --password-store=basic
+    volumes:
+      - /DATA/AppData/$AppID/chromium:/config
+    networks:
+      - portal-net
+
+  guacamole-db:
+    image: postgres:17.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: change-me-guacdb
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U guacamole_user -d guacamole_db
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - /DATA/AppData/$AppID/guacamole-postgres:/var/lib/postgresql/data
+    networks:
+      - portal-net
+
+  guacamole-db-init:
+    image: postgres:17.4
+    restart: "no"
+    depends_on:
+      guacamole-db:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      PGPASSWORD: change-me-guacdb
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        until pg_isready -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"; do
+          sleep 2
+        done
+
+        if psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'guacamole_user'" | grep -q 1; then
+          echo "Guacamole schema already present; skipping init."
+          exit 0
+        fi
+
+        wget -qO /tmp/001-create-schema.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/001-create-schema.sql
+        wget -qO /tmp/002-create-admin-user.sql https://raw.githubusercontent.com/apache/guacamole-client/master/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema/002-create-admin-user.sql
+
+        psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/001-create-schema.sql
+        psql -h guacamole-db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f /tmp/002-create-admin-user.sql
+    networks:
+      - portal-net
+
+  guacd:
+    image: guacamole/guacd:latest
+    restart: unless-stopped
+    networks:
+      - portal-net
+
+  guacamole:
+    image: guacamole/guacamole:latest
+    restart: unless-stopped
+    depends_on:
+      guacamole-db:
+        condition: service_healthy
+      guacamole-db-init:
+        condition: service_completed_successfully
+      guacd:
+        condition: service_started
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: guacamole-db
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole_user
+      POSTGRESQL_PASSWORD: change-me-guacdb
+    networks:
+      - portal-net
+
+networks:
+  portal-net:
+    name: portal-net
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: portal
+  author: iyouknow
+  category: Developer
+  description:
+    en_US: Portal is a browser workspace with embedded Chromium, terminals, and remote desktop sessions.
+  developer: iyouknow
+  icon: https://icon.casaos.io/main/all/portal.png
+  index: /
+  port_map: "38480"
+  scheme: http
+  tagline:
+    en_US: Self-hosted browser workspace with Chromium and remote desktop.
+  title:
+    en_US: Portal

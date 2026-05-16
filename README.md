@@ -26,6 +26,30 @@ docker compose up --build
 
 Portal remains the only public entrypoint. Guacamole, `guacd`, PostgreSQL, and Windows RDP targets stay private on the internal Docker network.
 
+## CasaOS
+
+Use [`docker-compose.casaos.yml`](docker-compose.casaos.yml) for CasaOS custom installs.
+
+Do not import [`docker-compose.yml`](docker-compose.yml) directly into CasaOS. That file is the general Docker Compose stack for normal Docker users, while CasaOS rewrites imported Compose files and can drop or alter features like interpolation, relative bind paths, and startup commands.
+
+The CasaOS-specific file bakes in the workarounds Portal needs for CasaOS import:
+
+- absolute `/DATA/AppData/$AppID/...` storage paths
+- explicit environment defaults instead of Compose interpolation
+- CasaOS metadata under `x-casaos`
+- a PostgreSQL 17.4 pin for Guacamole
+
+Recommended CasaOS flow:
+
+1. Open CasaOS `App Store`.
+2. Choose `Custom Install`.
+3. Import the contents of [`docker-compose.casaos.yml`](docker-compose.casaos.yml).
+4. Change at least:
+   - `PORTAL_ADMIN_PASSWORD`
+   - `PORTAL_GUACAMOLE_ADMIN_PASSWORD`
+   - `POSTGRES_PASSWORD`
+5. Install the stack.
+
 ## Local Development
 
 Backend:
