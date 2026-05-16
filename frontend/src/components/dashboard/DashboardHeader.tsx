@@ -2,7 +2,6 @@ import type { Overview, User } from "../../lib/api";
 
 type DashboardHeaderProps = {
   activeWorkspace: string;
-  overview: Overview;
   user: User;
   isAdmin: boolean;
   onRefresh: () => void;
@@ -11,7 +10,6 @@ type DashboardHeaderProps = {
 
 export function DashboardHeader({
   activeWorkspace,
-  overview,
   user,
   isAdmin,
   onRefresh,
@@ -20,14 +18,8 @@ export function DashboardHeader({
   return (
     <header className="relative z-10 flex items-center justify-between border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur">
       <div className="flex items-center gap-4">
-        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-muted">
-          Portal OS
-        </div>
         <div>
-          <p className="text-sm font-medium text-ink">{activeWorkspace}</p>
-          <p className="text-xs text-muted">
-            {overview.stats.workspaceCount} workspace · Chromium ready
-          </p>
+          <p className="text-lg font-medium text-ink">{activeWorkspace}</p>
         </div>
       </div>
 

@@ -1043,7 +1043,6 @@ export function Dashboard({
           isAdmin={isAdmin}
           onLogout={() => void onLogout()}
           onRefresh={() => void onRefresh()}
-          overview={overview}
           user={user}
         />
 
