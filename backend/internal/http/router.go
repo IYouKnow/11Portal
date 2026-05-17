@@ -95,17 +95,15 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	app.Get(
 		"/ws/terminal/:id",
 		middleware.RequireSession(cfg, dataStore),
-		websocket.New(terminalSessionHandler.Socket, websocket.Config{
-			Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
-		}),
+		validateWebSocketOrigin(cfg),
+		websocket.New(terminalSessionHandler.Socket),
 	)
 
 	app.Get(
 		"/ws/terminal",
 		middleware.RequireSession(cfg, dataStore),
-		websocket.New(handlers.TerminalSocket(cfg, terminalManager), websocket.Config{
-			Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
-		}),
+		validateWebSocketOrigin(cfg),
+		websocket.New(handlers.TerminalSocket(cfg, terminalManager)),
 	)
 
 	if guacamoleProxyHandler != nil && guacamoleProxyHandler.Enabled() {
@@ -116,8 +114,8 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		)
 		app.Get(
 			"/guacamole/websocket-tunnel",
+			validateWebSocketOrigin(cfg),
 			websocket.New(guacamoleProxyHandler.WebSocketTunnel, websocket.Config{
-				Origins:      []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
 				Subprotocols: []string{"guacamole"},
 			}),
 		)
@@ -131,9 +129,8 @@ func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 		)
 		app.Get(
 			"/chromium/websockets",
-			websocket.New(chromiumProxyHandler.WebSocket, websocket.Config{
-				Origins: []string{cfg.FrontendOrigin, strings.TrimSuffix(cfg.PublicURL, "/")},
-			}),
+			validateWebSocketOrigin(cfg),
+			websocket.New(chromiumProxyHandler.WebSocket),
 		)
 
 		app.Use("/chromium", middleware.RequireSession(cfg, dataStore), func(c *fiber.Ctx) error {
@@ -287,4 +284,86 @@ func shouldProxyChromium(cfg config.Config) bool {
 	default:
 		return false
 	}
+}
+
+func validateWebSocketOrigin(cfg config.Config) fiber.Handler {
+	allowedOrigins := configuredWebSocketOrigins(cfg)
+
+	return func(c *fiber.Ctx) error {
+		origin := normalizeOrigin(c.Get("Origin"))
+		if origin == "" {
+			return c.Next()
+		}
+
+		if _, ok := allowedOrigins[origin]; ok {
+			return c.Next()
+		}
+
+		requestOrigin := normalizeOrigin(requestPublicOrigin(c))
+		if requestOrigin != "" && origin == requestOrigin {
+			return c.Next()
+		}
+
+		if sameHostOrigin(origin, requestOrigin) {
+			return c.Next()
+		}
+
+		return fiber.ErrForbidden
+	}
+}
+
+func configuredWebSocketOrigins(cfg config.Config) map[string]struct{} {
+	origins := map[string]struct{}{}
+	for _, candidate := range []string{cfg.FrontendOrigin, cfg.PublicURL} {
+		normalized := normalizeOrigin(candidate)
+		if normalized == "" {
+			continue
+		}
+		origins[normalized] = struct{}{}
+	}
+	return origins
+}
+
+func requestPublicOrigin(c *fiber.Ctx) string {
+	host := strings.TrimSpace(c.Hostname())
+	if host == "" {
+		return ""
+	}
+
+	return forwardedProtoForFiber(c) + "://" + host
+}
+
+func forwardedProtoForFiber(c *fiber.Ctx) string {
+	if proto := strings.TrimSpace(c.Get("X-Forwarded-Proto")); proto != "" {
+		return proto
+	}
+	return c.Protocol()
+}
+
+func normalizeOrigin(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || parsed.Scheme == "" {
+		return ""
+	}
+
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host)
+}
+
+func sameHostOrigin(left, right string) bool {
+	if left == "" || right == "" {
+		return false
+	}
+
+	leftURL, leftErr := url.Parse(left)
+	rightURL, rightErr := url.Parse(right)
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+
+	return strings.EqualFold(leftURL.Host, rightURL.Host)
 }

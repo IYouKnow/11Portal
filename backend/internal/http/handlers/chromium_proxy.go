@@ -116,7 +116,7 @@ func (h *ChromiumProxyHandler) BuildUpstreamWebSocketURL(requestPath, rawQuery s
 	}
 
 	target := *h.upstreamWebSocketURL
-	target.Path = joinUpstreamPath(target.Path, requestPath)
+	target.Path = joinUpstreamWebSocketPath(target.Path, requestPath)
 	target.RawPath = target.Path
 	target.RawQuery = rawQuery
 	return target.String()
@@ -137,4 +137,9 @@ func joinUpstreamPath(basePath, requestPath string) string {
 	default:
 		return trimmedBase + "/" + strings.TrimPrefix(trimmedRequest, "/")
 	}
+}
+
+func joinUpstreamWebSocketPath(basePath, requestPath string) string {
+	joined := joinUpstreamPath(basePath, requestPath)
+	return strings.Replace(joined, "/websockets", "/websocket", 1)
 }
