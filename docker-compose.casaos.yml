@@ -54,7 +54,6 @@ services:
       PGID: $PGID
       TZ: $TZ
       SUBFOLDER: /chromium/
-      CUSTOM_WS_PORT: 8082
       TITLE: Portal Chromium
       SELKIES_UI_TITLE: Portal
       SELKIES_UI_SHOW_LOGO: false|locked
