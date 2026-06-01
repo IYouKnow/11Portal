@@ -8,7 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { closeBrowserRuntime } from "../lib/api";
+import {
+  closeBrowserRuntime,
+  closeTerminalSession,
+  listTerminalSessions,
+} from "../lib/api";
 import { RemoteDesktopPanel } from "./RemoteDesktopPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import {
@@ -210,6 +214,13 @@ export function Dashboard({
     try {
       if (appId === "chromium") {
         await closeBrowserRuntime();
+      }
+
+      if (appId === "terminal") {
+        const { items } = await listTerminalSessions();
+        await Promise.allSettled(
+          items.map((session) => closeTerminalSession(session.id)),
+        );
       }
 
       setWindows((current) => ({

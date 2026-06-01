@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -274,7 +276,12 @@ func (h *SessionHandle) Write(p []byte) (int, error) {
 }
 
 func newLocalSession(view SessionView, shell string) (*managedSession, error) {
-	cmd := exec.Command(shell)
+	commandPath, commandArgs, err := resolveLocalShell(shell)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(commandPath, commandArgs...)
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		return nil, err
@@ -290,6 +297,35 @@ func newLocalSession(view SessionView, shell string) (*managedSession, error) {
 			return nil
 		},
 	}, nil
+}
+
+func resolveLocalShell(configuredShell string) (string, []string, error) {
+	candidates := make([]string, 0, 5)
+	if strings.TrimSpace(configuredShell) != "" {
+		candidates = append(candidates, configuredShell)
+	}
+
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, "powershell.exe", "cmd.exe")
+	} else {
+		candidates = append(candidates, "/bin/sh", "/bin/bash", "sh", "bash")
+	}
+
+	for _, candidate := range candidates {
+		parts := strings.Fields(strings.TrimSpace(candidate))
+		if len(parts) == 0 {
+			continue
+		}
+
+		commandPath, err := exec.LookPath(parts[0])
+		if err != nil {
+			continue
+		}
+
+		return commandPath, parts[1:], nil
+	}
+
+	return "", nil, fmt.Errorf("no usable local shell found")
 }
 
 func newSSHSession(view SessionView, cfg SSHConfig) (*managedSession, error) {
