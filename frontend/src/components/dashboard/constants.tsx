@@ -21,6 +21,8 @@ export const initialWindows: WindowMap = {
     snapped: null,
     position: { x: 24, y: 96 },
     lastFloatingPosition: { x: 24, y: 96 },
+    size: { width: 980, height: 720 },
+    lastFloatingSize: { width: 980, height: 720 },
     zIndex: 1,
   },
   terminal: {
@@ -30,6 +32,8 @@ export const initialWindows: WindowMap = {
     snapped: null,
     position: { x: 72, y: 136 },
     lastFloatingPosition: { x: 72, y: 136 },
+    size: { width: 840, height: 560 },
+    lastFloatingSize: { width: 840, height: 560 },
     zIndex: 1,
   },
   remoteDesktop: {
@@ -39,6 +43,8 @@ export const initialWindows: WindowMap = {
     snapped: null,
     position: { x: 156, y: 84 },
     lastFloatingPosition: { x: 156, y: 84 },
+    size: { width: 960, height: 680 },
+    lastFloatingSize: { width: 960, height: 680 },
     zIndex: 1,
   },
   settings: {
@@ -48,6 +54,8 @@ export const initialWindows: WindowMap = {
     snapped: null,
     position: { x: 128, y: 112 },
     lastFloatingPosition: { x: 128, y: 112 },
+    size: { width: 760, height: 620 },
+    lastFloatingSize: { width: 760, height: 620 },
     zIndex: 1,
   },
 };

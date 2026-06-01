@@ -44,6 +44,8 @@ import type {
   DragState,
   IconDragState,
   IconPositionMap,
+  ResizeDirection,
+  ResizeState,
   WallpaperPresetId,
   WallpaperState,
   WindowMap,
@@ -91,6 +93,7 @@ export function Dashboard({
     ReturnType<typeof detectSnapMode>
   >(null);
   const dragStateRef = useRef<DragState>(null);
+  const resizeStateRef = useRef<ResizeState>(null);
   const iconDragStateRef = useRef<IconDragState>(null);
   const suppressIconClickRef = useRef<AppID | null>(null);
   const desktopIconsRef = useRef<IconPositionMap>(initialDesktopIcons);
@@ -107,6 +110,10 @@ export function Dashboard({
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
   const desktopIconsStorageKey = `portal.desktop-icons.${user.id}`;
   const desktopLaunchModeStorageKey = `portal.desktop-launch-mode.${user.id}`;
+  const minWindowSize = {
+    width: 420,
+    height: 280,
+  };
 
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
     const preset = wallpaperPresets.find((item) => item.id === presetId);
@@ -214,6 +221,7 @@ export function Dashboard({
           maximized: false,
           snapped: null,
           position: current[appId].lastFloatingPosition,
+          size: current[appId].lastFloatingSize,
         },
       }));
       setActiveApp((current) => (current === appId ? null : current));
@@ -424,6 +432,85 @@ export function Dashboard({
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
+      const resizeState = resizeStateRef.current;
+      if (resizeState && resizeState.pointerId === event.pointerId) {
+        if ((event.buttons & 1) !== 1) {
+          resizeStateRef.current = null;
+          return;
+        }
+
+        const deltaX = event.clientX - resizeState.startX;
+        const deltaY = event.clientY - resizeState.startY;
+
+        setWindows((current) => {
+          const targetWindow = current[resizeState.appId];
+          if (targetWindow.maximized || targetWindow.snapped) {
+            return current;
+          }
+
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          let nextX = resizeState.startPosition.x;
+          let nextY = resizeState.startPosition.y;
+          let nextWidth = resizeState.startSize.width;
+          let nextHeight = resizeState.startSize.height;
+
+          if (
+            resizeState.direction === "right" ||
+            resizeState.direction === "top-right" ||
+            resizeState.direction === "bottom-right"
+          ) {
+            nextWidth = Math.min(
+              Math.max(minWindowSize.width, resizeState.startSize.width + deltaX),
+              viewportWidth - resizeState.startPosition.x,
+            );
+          }
+
+          if (
+            resizeState.direction === "bottom" ||
+            resizeState.direction === "bottom-left" ||
+            resizeState.direction === "bottom-right"
+          ) {
+            nextHeight = Math.min(
+              Math.max(minWindowSize.height, resizeState.startSize.height + deltaY),
+              viewportHeight - resizeState.startPosition.y,
+            );
+          }
+
+          if (
+            resizeState.direction === "left" ||
+            resizeState.direction === "top-left" ||
+            resizeState.direction === "bottom-left"
+          ) {
+            const maxLeft = resizeState.startPosition.x + resizeState.startSize.width - minWindowSize.width;
+            nextX = Math.max(0, Math.min(resizeState.startPosition.x + deltaX, maxLeft));
+            nextWidth = resizeState.startSize.width + (resizeState.startPosition.x - nextX);
+          }
+
+          if (
+            resizeState.direction === "top" ||
+            resizeState.direction === "top-left" ||
+            resizeState.direction === "top-right"
+          ) {
+            const maxTop = resizeState.startPosition.y + resizeState.startSize.height - minWindowSize.height;
+            nextY = Math.max(0, Math.min(resizeState.startPosition.y + deltaY, maxTop));
+            nextHeight = resizeState.startSize.height + (resizeState.startPosition.y - nextY);
+          }
+
+          return {
+            ...current,
+            [resizeState.appId]: {
+              ...targetWindow,
+              position: { x: nextX, y: nextY },
+              size: { width: nextWidth, height: nextHeight },
+              lastFloatingPosition: { x: nextX, y: nextY },
+              lastFloatingSize: { width: nextWidth, height: nextHeight },
+            },
+          };
+        });
+        return;
+      }
+
       if (!dragState || dragState.pointerId !== event.pointerId) {
         return;
       }
@@ -443,7 +530,7 @@ export function Dashboard({
           return current;
         }
 
-        const width = Math.min(window.innerWidth * 0.78, 980);
+        const width = targetWindow.size.width;
         const nextX = event.clientX - dragState.offsetX;
         const nextY = event.clientY - dragState.offsetY;
 
@@ -453,7 +540,7 @@ export function Dashboard({
             ...targetWindow,
             position: {
               x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
-              y: Math.max(-28, Math.min(nextY, window.innerHeight - 48)),
+              y: Math.max(0, Math.min(nextY, window.innerHeight - 48)),
             },
           },
         };
@@ -461,6 +548,12 @@ export function Dashboard({
     };
 
     const handlePointerEnd = (event: PointerEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (resizeState && resizeState.pointerId === event.pointerId) {
+        resizeStateRef.current = null;
+        return;
+      }
+
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== event.pointerId) {
         return;
@@ -516,6 +609,64 @@ export function Dashboard({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, []);
+
+  useEffect(() => {
+    const clampWindowsToViewport = () => {
+      setWindows((current) => {
+        let changed = false;
+        const nextWindows = { ...current };
+
+        for (const app of apps) {
+          const windowState = current[app.id];
+          if (windowState.maximized || windowState.snapped) {
+            continue;
+          }
+
+          const nextWidth = Math.min(
+            Math.max(windowState.size.width, minWindowSize.width),
+            window.innerWidth,
+          );
+          const nextHeight = Math.min(
+            Math.max(windowState.size.height, minWindowSize.height),
+            window.innerHeight,
+          );
+          const nextX = Math.max(
+            0,
+            Math.min(windowState.position.x, window.innerWidth - nextWidth),
+          );
+          const nextY = Math.max(
+            0,
+            Math.min(windowState.position.y, window.innerHeight - nextHeight),
+          );
+
+          if (
+            nextWidth !== windowState.size.width ||
+            nextHeight !== windowState.size.height ||
+            nextX !== windowState.position.x ||
+            nextY !== windowState.position.y
+          ) {
+            changed = true;
+            nextWindows[app.id] = {
+              ...windowState,
+              position: { x: nextX, y: nextY },
+              lastFloatingPosition: { x: nextX, y: nextY },
+              size: { width: nextWidth, height: nextHeight },
+              lastFloatingSize: { width: nextWidth, height: nextHeight },
+            };
+          }
+        }
+
+        return changed ? nextWindows : current;
+      });
+    };
+
+    clampWindowsToViewport();
+    window.addEventListener("resize", clampWindowsToViewport);
+
+    return () => {
+      window.removeEventListener("resize", clampWindowsToViewport);
     };
   }, []);
 
@@ -713,8 +864,14 @@ export function Dashboard({
     let offsetY = event.clientY - appWindow.position.y;
 
     if (appWindow.maximized || appWindow.snapped) {
-      const restoredWidth = Math.min(window.innerWidth * 0.78, 980);
-      const restoredHeight = Math.min(window.innerHeight * 0.7, 720);
+      const restoredWidth = Math.min(
+        appWindow.lastFloatingSize.width,
+        window.innerWidth,
+      );
+      const restoredHeight = Math.min(
+        appWindow.lastFloatingSize.height,
+        window.innerHeight,
+      );
       const currentBounds = appWindow.maximized
         ? getSnapBounds("maximize")
         : getSnapBounds(appWindow.snapped ?? "left");
@@ -737,10 +894,10 @@ export function Dashboard({
 
       nextPosition = {
         x: Math.max(
-          -restoredWidth + 120,
-          Math.min(event.clientX - anchorX, window.innerWidth - 120),
+          0,
+          Math.min(event.clientX - anchorX, window.innerWidth - restoredWidth),
         ),
-        y: Math.max(-28, Math.min(event.clientY - anchorY, window.innerHeight - 48)),
+        y: Math.max(0, Math.min(event.clientY - anchorY, window.innerHeight - restoredHeight)),
       };
 
       setWindows((current) => ({
@@ -751,6 +908,10 @@ export function Dashboard({
           snapped: null,
           position: nextPosition,
           lastFloatingPosition: nextPosition,
+          size: {
+            width: restoredWidth,
+            height: restoredHeight,
+          },
         },
       }));
 
@@ -767,6 +928,36 @@ export function Dashboard({
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraggingApp(appId);
     setSnapPreview(detectSnapMode(event.clientX, event.clientY));
+  };
+
+  const startResizing = (
+    appId: AppID,
+    direction: ResizeDirection,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    focusApp(appId);
+
+    const appWindow = windows[appId];
+    if (appWindow.maximized || appWindow.snapped) {
+      return;
+    }
+
+    resizeStateRef.current = {
+      appId,
+      pointerId: event.pointerId,
+      direction,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition: appWindow.position,
+      startSize: appWindow.size,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const stopWindowControlPointer = (
@@ -1090,6 +1281,7 @@ export function Dashboard({
             onClose={closeApp}
             onFocus={focusApp}
             onMinimize={minimizeApp}
+            onStartResizing={startResizing}
             onStartDragging={startDragging}
             onStopWindowControlMouse={stopWindowControlMouse}
             onStopWindowControlPointer={stopWindowControlPointer}

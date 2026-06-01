@@ -5,7 +5,7 @@ import type {
 } from "react";
 import { windowTitle } from "./constants";
 import { getSnapBounds } from "./desktopUtils";
-import type { AppID, SnapMode, WindowState } from "./types";
+import type { AppID, ResizeDirection, WindowState } from "./types";
 
 type WindowFrameProps = {
   activeApp: AppID | null;
@@ -14,6 +14,11 @@ type WindowFrameProps = {
   onClose: (appId: AppID) => void | Promise<void>;
   onFocus: (appId: AppID) => void;
   onMinimize: (appId: AppID) => void;
+  onStartResizing: (
+    appId: AppID,
+    direction: ResizeDirection,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => void;
   onStartDragging: (
     appId: AppID,
     event: ReactPointerEvent<HTMLDivElement>,
@@ -35,6 +40,7 @@ export function WindowFrame({
   onClose,
   onFocus,
   onMinimize,
+  onStartResizing,
   onStartDragging,
   onStopWindowControlMouse,
   onStopWindowControlPointer,
@@ -45,13 +51,44 @@ export function WindowFrame({
     ? getSnapBounds(windowState.snapped)
     : null;
   const isFramedToViewport = windowState.maximized || snappedBounds !== null;
+  const resizeHandles: Array<{
+    direction: ResizeDirection;
+    className: string;
+  }> = [
+    { direction: "top", className: "left-3 right-3 top-0 h-1 cursor-ns-resize" },
+    {
+      direction: "right",
+      className: "bottom-3 right-0 top-3 w-1 cursor-ew-resize",
+    },
+    {
+      direction: "bottom",
+      className: "bottom-0 left-3 right-3 h-1 cursor-ns-resize",
+    },
+    { direction: "left", className: "bottom-3 left-0 top-3 w-1 cursor-ew-resize" },
+    {
+      direction: "top-left",
+      className: "left-0 top-0 h-3 w-3 cursor-nwse-resize",
+    },
+    {
+      direction: "top-right",
+      className: "right-0 top-0 h-3 w-3 cursor-nesw-resize",
+    },
+    {
+      direction: "bottom-left",
+      className: "bottom-0 left-0 h-3 w-3 cursor-nesw-resize",
+    },
+    {
+      direction: "bottom-right",
+      className: "bottom-0 right-0 h-3 w-3 cursor-nwse-resize",
+    },
+  ];
 
   return (
     <div
       className={`absolute ${
         isFramedToViewport
           ? "h-screen w-screen"
-          : "h-[min(70vh,720px)] w-[min(78vw,980px)]"
+          : ""
       }`}
       onMouseDown={() => onFocus(appId)}
       style={{
@@ -66,17 +103,30 @@ export function WindowFrame({
             ? 0
             : snappedBounds?.top
           : `${windowState.position.y}px`,
-        width: windowState.maximized ? "100vw" : snappedBounds?.width,
-        height: windowState.maximized ? "100vh" : snappedBounds?.height,
+        width: windowState.maximized
+          ? "100vw"
+          : snappedBounds?.width ?? `${windowState.size.width}px`,
+        height: windowState.maximized
+          ? "100vh"
+          : snappedBounds?.height ?? `${windowState.size.height}px`,
       }}
     >
       <div
-        className={`h-full overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
+        className={`relative h-full overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
           activeApp === appId
             ? "border-accent/30 bg-[#07090d]"
             : "border-white/10 bg-[#07090d]/95"
         } ${windowState.maximized ? "rounded-none" : "rounded-2xl"}`}
       >
+        {!isFramedToViewport
+          ? resizeHandles.map((handle) => (
+              <div
+                key={handle.direction}
+                className={`absolute z-20 touch-none ${handle.className}`}
+                onPointerDown={(event) => onStartResizing(appId, handle.direction, event)}
+              />
+            ))
+          : null}
         <div
           className="flex h-8 select-none items-center justify-between border-b border-white/10 bg-black/45 px-3"
           onDoubleClick={() => onToggleMaximize(appId)}

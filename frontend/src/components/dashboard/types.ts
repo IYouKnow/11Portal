@@ -42,6 +42,8 @@ export type WindowState = {
   snapped: SnapMode | null;
   position: { x: number; y: number };
   lastFloatingPosition: { x: number; y: number };
+  size: { width: number; height: number };
+  lastFloatingSize: { width: number; height: number };
   zIndex: number;
 };
 
@@ -52,6 +54,26 @@ export type DragState = {
   pointerId: number;
   offsetX: number;
   offsetY: number;
+} | null;
+
+export type ResizeDirection =
+  | "top"
+  | "right"
+  | "bottom"
+  | "left"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
+
+export type ResizeState = {
+  appId: AppID;
+  pointerId: number;
+  direction: ResizeDirection;
+  startX: number;
+  startY: number;
+  startPosition: { x: number; y: number };
+  startSize: { width: number; height: number };
 } | null;
 
 export type IconPosition = {
