@@ -305,9 +305,9 @@ export function detectSnapMode(
   pointerX: number,
   pointerY: number,
 ): SnapMode | "maximize" | null {
-  const edgeThreshold = 36;
-  const topThreshold = 44;
-  const cornerThreshold = 140;
+  const edgeThreshold = 12;
+  const topThreshold = 16;
+  const cornerThreshold = 64;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
