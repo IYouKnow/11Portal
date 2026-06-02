@@ -119,7 +119,7 @@ input {
 }
 
 .desktop-icon-label {
-  text-shadow: var(--desktop-icon-shadow);
+  text-shadow: none;
 }
 
 .terminal-scrollbar::-webkit-scrollbar {

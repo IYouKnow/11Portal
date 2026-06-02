@@ -18,6 +18,7 @@ type DesktopSurfaceProps = {
   draggingDesktopIcon: AppID | null;
   isAppMinimized: (appId: AppID) => boolean;
   isAppOpen: (appId: AppID) => boolean;
+  useLightLabels: boolean;
   onDesktopPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onDesktopPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onDesktopPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -39,6 +40,7 @@ export function DesktopSurface({
   draggingDesktopIcon,
   isAppMinimized,
   isAppOpen,
+  useLightLabels,
   onDesktopPointerDown,
   onDesktopPointerMove,
   onDesktopPointerEnd,
@@ -98,7 +100,11 @@ export function DesktopSurface({
           >
             <AppIcon appId={app.id} />
           </div>
-          <span className="desktop-icon-label max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 text-ink">
+          <span
+            className={`desktop-icon-label max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 ${
+              useLightLabels ? "text-white" : "text-ink"
+            }`}
+          >
             {app.label}
           </span>
         </button>

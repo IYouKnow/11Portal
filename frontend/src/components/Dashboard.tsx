@@ -84,7 +84,6 @@ export function Dashboard({
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<"user" | "admin">("user");
-  const [customWallpaperUrl, setCustomWallpaperUrl] = useState("");
   const [wallpaperError, setWallpaperError] = useState<string | null>(null);
   const [wallpaper, setWallpaper] = useState<WallpaperState>(initialWallpaper);
   const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
@@ -138,7 +137,6 @@ export function Dashboard({
       image: preset.image,
       overlay: preset.overlay[resolvedTheme],
     });
-    setCustomWallpaperUrl("");
     setWallpaperError(null);
   };
 
@@ -330,7 +328,6 @@ export function Dashboard({
               image: storedImage,
               overlay: getCustomWallpaperOverlay(resolvedTheme),
             });
-            setCustomWallpaperUrl(storedImage.startsWith("data:") ? "" : storedImage);
             return;
           }
         }
@@ -1055,7 +1052,6 @@ export function Dashboard({
         return;
       }
 
-      setCustomWallpaperUrl("");
       applyCustomWallpaper(reader.result);
     };
     reader.onerror = () => {
@@ -1063,11 +1059,6 @@ export function Dashboard({
     };
     reader.readAsDataURL(file);
     event.target.value = "";
-  };
-
-  const handleWallpaperUrlSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    applyCustomWallpaper(customWallpaperUrl);
   };
 
   const handleDesktopPointerDown = (
@@ -1240,20 +1231,17 @@ export function Dashboard({
       );
     }
 
-    return (
-      <SettingsPanel
-        customWallpaperUrl={customWallpaperUrl}
-        desktopLaunchMode={desktopLaunchMode}
-        error={error}
-        onApplyPresetWallpaper={applyPresetWallpaper}
-        onCustomWallpaperUrlChange={setCustomWallpaperUrl}
-        onDesktopLaunchModeChange={setDesktopLaunchMode}
-        onShowDockChange={setShowDock}
-        onWallpaperUpload={handleWallpaperUpload}
-        onWallpaperUrlSubmit={handleWallpaperUrlSubmit}
-        showDock={showDock}
-        user={user}
-        wallpaper={wallpaper}
+      return (
+        <SettingsPanel
+          desktopLaunchMode={desktopLaunchMode}
+          error={error}
+          onApplyPresetWallpaper={applyPresetWallpaper}
+          onDesktopLaunchModeChange={setDesktopLaunchMode}
+          onShowDockChange={setShowDock}
+          onWallpaperUpload={handleWallpaperUpload}
+          showDock={showDock}
+          user={user}
+          wallpaper={wallpaper}
         wallpaperError={wallpaperError}
       />
     );
@@ -1312,6 +1300,7 @@ export function Dashboard({
             draggingDesktopIcon={draggingDesktopIcon}
             isAppMinimized={isAppMinimized}
             isAppOpen={isAppOpen}
+            useLightLabels={!showDesktopGrid}
             onDesktopIconClick={handleDesktopIconClick}
             onDesktopIconDoubleClick={handleDesktopIconDoubleClick}
             onDesktopPointerDown={handleDesktopPointerDown}

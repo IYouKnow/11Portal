@@ -45,7 +45,7 @@ export function Taskbar({
                 }
                 type="button"
               >
-                <span className="pointer-events-none absolute -top-10 rounded-md border border-line/70 bg-panel/96 px-2 py-1 text-[11px] text-ink opacity-0 shadow-soft transition duration-150 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94">
+                <span className="pointer-events-none absolute -top-12 left-1/2 whitespace-nowrap rounded-md border border-black/10 bg-slate-900/92 px-2 py-1 text-[11px] text-white opacity-0 shadow-soft transition duration-150 -translate-x-1/2 group-hover:-translate-x-1/2 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94">
                   {app.label}
                 </span>
                 <span
