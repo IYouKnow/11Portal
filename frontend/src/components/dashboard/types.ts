@@ -107,7 +107,10 @@ export type WallpaperPreset = {
   id: string;
   label: string;
   image: string;
-  overlay: string;
+  overlay: {
+    light: string;
+    dark: string;
+  };
 };
 
 export type WallpaperPresetId = "gradient" | "dunes" | "mountains" | "sea";

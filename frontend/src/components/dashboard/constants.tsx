@@ -3,8 +3,10 @@ import type {
   DesktopApp,
   IconPositionMap,
   WallpaperPreset,
+  WallpaperPresetId,
   WindowMap,
 } from "./types";
+import type { ResolvedTheme } from "../../theme-config";
 
 export const apps: DesktopApp[] = [
   { id: "chromium", label: "Chromium", available: true },
@@ -73,41 +75,74 @@ export const wallpaperPresets: WallpaperPreset[] = [
     id: "gradient",
     label: "Aurora",
     image: "",
-    overlay:
-      "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+    overlay: {
+      light:
+        "radial-gradient(circle at top left,rgba(56,189,248,0.20),transparent 26%),radial-gradient(circle at bottom right,rgba(34,197,94,0.16),transparent 30%),linear-gradient(180deg,rgb(244,248,252) 0%,rgb(228,239,249) 58%,rgb(214,228,242) 100%)",
+      dark:
+        "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+    },
   },
   {
     id: "dunes",
     label: "Dunes",
     image:
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
-    overlay:
-      "linear-gradient(180deg,rgba(15,23,42,0.35),rgba(2,6,23,0.78))",
+    overlay: {
+      light:
+        "linear-gradient(180deg,rgba(255,248,236,0.20),rgba(236,228,214,0.34))",
+      dark:
+        "linear-gradient(180deg,rgba(15,23,42,0.35),rgba(2,6,23,0.78))",
+    },
   },
   {
     id: "mountains",
     label: "Mountains",
     image:
       "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
-    overlay:
-      "linear-gradient(180deg,rgba(3,7,18,0.30),rgba(2,6,23,0.76))",
+    overlay: {
+      light:
+        "linear-gradient(180deg,rgba(241,245,249,0.16),rgba(226,232,240,0.30))",
+      dark:
+        "linear-gradient(180deg,rgba(3,7,18,0.30),rgba(2,6,23,0.76))",
+    },
   },
   {
     id: "sea",
     label: "Sea",
     image:
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
-    overlay:
-      "linear-gradient(180deg,rgba(8,47,73,0.26),rgba(2,6,23,0.78))",
+    overlay: {
+      light:
+        "linear-gradient(180deg,rgba(224,242,254,0.12),rgba(186,230,253,0.26))",
+      dark:
+        "linear-gradient(180deg,rgba(8,47,73,0.26),rgba(2,6,23,0.78))",
+    },
   },
 ];
+
+export function getWallpaperPreset(presetId: WallpaperPresetId) {
+  return wallpaperPresets.find((item) => item.id === presetId);
+}
+
+export function getWallpaperOverlay(
+  presetId: WallpaperPresetId,
+  resolvedTheme: ResolvedTheme,
+) {
+  const preset = getWallpaperPreset(presetId);
+  return preset?.overlay[resolvedTheme] ?? wallpaperPresets[0].overlay[resolvedTheme];
+}
+
+export function getCustomWallpaperOverlay(resolvedTheme: ResolvedTheme) {
+  return resolvedTheme === "light"
+    ? "linear-gradient(180deg,rgba(255,255,255,0.08),rgba(226,232,240,0.22))"
+    : "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))";
+}
 
 export const initialWallpaper = {
   mode: "preset",
   presetId: DEFAULT_WALLPAPER,
   image: "",
-  overlay:
-    "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+  overlay: wallpaperPresets[0].overlay.dark,
 } as const;
 
 export const initialDesktopIcons: IconPositionMap = {

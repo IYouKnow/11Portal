@@ -21,10 +21,12 @@ import {
   DEFAULT_WALLPAPER,
   DESKTOP_ICON_HEIGHT,
   DESKTOP_ICON_WIDTH,
+  getCustomWallpaperOverlay,
+  getWallpaperOverlay,
+  getWallpaperPreset,
   initialDesktopIcons,
   initialWallpaper,
   initialWindows,
-  wallpaperPresets,
 } from "./dashboard/constants";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
 import { DesktopSurface } from "./dashboard/DesktopSurface";
@@ -60,6 +62,7 @@ import {
   readWallpaperImage,
   writeWallpaperImage,
 } from "./dashboard/wallpaperStorage";
+import { useTheme } from "../theme-context";
 
 export function Dashboard({
   user,
@@ -71,6 +74,7 @@ export function Dashboard({
   onLogout,
   onCreateUser,
 }: DashboardProps) {
+  const { resolvedTheme } = useTheme();
   const [activeApp, setActiveApp] = useState<AppID | null>(null);
   const [windows, setWindows] = useState<WindowMap>(initialWindows);
   const [isBusy, setIsBusy] = useState(false);
@@ -122,7 +126,7 @@ export function Dashboard({
   };
 
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
-    const preset = wallpaperPresets.find((item) => item.id === presetId);
+    const preset = getWallpaperPreset(presetId);
     if (!preset) {
       return;
     }
@@ -131,7 +135,7 @@ export function Dashboard({
       mode: "preset",
       presetId,
       image: preset.image,
-      overlay: preset.overlay,
+      overlay: preset.overlay[resolvedTheme],
     });
     setCustomWallpaperUrl("");
     setWallpaperError(null);
@@ -148,7 +152,7 @@ export function Dashboard({
       mode: "custom",
       presetId: DEFAULT_WALLPAPER,
       image: normalized,
-      overlay: "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
+      overlay: getCustomWallpaperOverlay(resolvedTheme),
     });
     setWallpaperError(null);
   };
@@ -303,9 +307,9 @@ export function Dashboard({
 
     const loadWallpaper = async () => {
       const raw = window.localStorage.getItem(wallpaperStorageKey);
-      if (!raw) {
-        if (!cancelled) {
-          applyPresetWallpaper(DEFAULT_WALLPAPER);
+        if (!raw) {
+          if (!cancelled) {
+            applyPresetWallpaper(DEFAULT_WALLPAPER);
         }
         return;
       }
@@ -323,9 +327,7 @@ export function Dashboard({
               mode: "custom",
               presetId: DEFAULT_WALLPAPER,
               image: storedImage,
-              overlay:
-                parsed.overlay ??
-                "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))",
+              overlay: getCustomWallpaperOverlay(resolvedTheme),
             });
             setCustomWallpaperUrl(storedImage.startsWith("data:") ? "" : storedImage);
             return;
@@ -333,15 +335,13 @@ export function Dashboard({
         }
 
         if (parsed.presetId) {
-          const preset = wallpaperPresets.find(
-            (item) => item.id === parsed.presetId,
-          );
+          const preset = getWallpaperPreset(parsed.presetId as WallpaperPresetId);
           if (preset && !cancelled) {
             setWallpaper({
               mode: "preset",
               presetId: preset.id as WallpaperPresetId,
               image: preset.image,
-              overlay: preset.overlay,
+              overlay: preset.overlay[resolvedTheme],
             });
             return;
           }
@@ -360,7 +360,29 @@ export function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [wallpaperStorageKey]);
+  }, [resolvedTheme, wallpaperStorageKey]);
+
+  useEffect(() => {
+    setWallpaper((current) => {
+      if (current.mode === "custom") {
+        const nextOverlay = getCustomWallpaperOverlay(resolvedTheme);
+        return current.overlay === nextOverlay
+          ? current
+          : {
+              ...current,
+              overlay: nextOverlay,
+            };
+      }
+
+      const nextOverlay = getWallpaperOverlay(current.presetId, resolvedTheme);
+      return current.overlay === nextOverlay
+        ? current
+        : {
+            ...current,
+            overlay: nextOverlay,
+          };
+    });
+  }, [resolvedTheme]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1190,7 +1212,7 @@ export function Dashboard({
       return (
         <iframe
           key={iframeKey}
-          className={`h-[calc(100%-32px)] w-full border-0 bg-black ${
+          className={`h-full w-full border-0 bg-canvas ${
             draggingApp === "chromium" ? "pointer-events-none" : ""
           }`}
           loading="lazy"
@@ -1251,7 +1273,7 @@ export function Dashboard({
     .sort((left, right) => windows[left.id].zIndex - windows[right.id].zIndex);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-ink">
+    <main className="relative min-h-screen overflow-hidden bg-canvas text-ink">
       <div
         className="absolute inset-0"
         style={{
@@ -1263,7 +1285,10 @@ export function Dashboard({
         }}
       />
       <div className="absolute inset-0 bg-portal-grid bg-[length:52px_52px] opacity-[0.14]" />
-      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/6 to-transparent" />
+      <div
+        className="absolute inset-x-0 top-0 h-40"
+        style={{ background: "var(--app-top-glow)" }}
+      />
 
       <div className="relative flex min-h-screen flex-col">
         <DashboardHeader
@@ -1306,7 +1331,7 @@ export function Dashboard({
         {draggingApp && snapPreview ? (
           <div className="pointer-events-none absolute inset-0 z-40 p-2">
             <div
-              className="absolute rounded-[1.6rem] border border-sky-300/45 bg-sky-400/14 shadow-[0_0_0_1px_rgba(125,211,252,0.14)_inset]"
+              className="absolute rounded-[1.6rem] border border-info/45 bg-selection/15 shadow-[0_0_0_1px_rgba(var(--color-selection),0.18)_inset]"
               style={getSnapBounds(snapPreview)}
             />
           </div>

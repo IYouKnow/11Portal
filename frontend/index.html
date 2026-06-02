@@ -4,10 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Portal</title>
+    <script>
+      (function () {
+        var storageKey = "portal.theme";
+        var storedMode = window.localStorage.getItem(storageKey);
+        var themeMode =
+          storedMode === "light" || storedMode === "dark" || storedMode === "system"
+            ? storedMode
+            : "system";
+        var resolvedTheme =
+          themeMode === "system"
+            ? window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : themeMode;
+
+        document.documentElement.dataset.theme = resolvedTheme;
+        document.documentElement.style.colorScheme = resolvedTheme;
+      })();
+    </script>
   </head>
   <body class="bg-canvas">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

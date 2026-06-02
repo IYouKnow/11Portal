@@ -112,10 +112,10 @@ export function WindowFrame({
       }}
     >
       <div
-        className={`relative h-full overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
+        className={`relative flex h-full flex-col overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
           activeApp === appId
-            ? "border-accent/30 bg-[#07090d]"
-            : "border-white/10 bg-[#07090d]/95"
+            ? "border-accent/30 bg-window-active"
+            : "border-line bg-window/95"
         } ${windowState.maximized ? "rounded-none" : "rounded-2xl"}`}
       >
         {!isFramedToViewport
@@ -128,7 +128,7 @@ export function WindowFrame({
             ))
           : null}
         <div
-          className="flex h-8 select-none items-center justify-between border-b border-white/10 bg-black/45 px-3"
+          className="flex h-10 shrink-0 select-none items-center justify-between border-b border-line bg-window-chrome/95 px-3"
           onDoubleClick={() => onToggleMaximize(appId)}
           onPointerDown={(event) => onStartDragging(appId, event)}
         >
@@ -138,7 +138,7 @@ export function WindowFrame({
 
           <div className="flex items-center gap-1.5">
             <button
-              className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-white/15 bg-white/5 px-1.5 text-[10px] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/10"
+              className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-line bg-surface/80 px-1.5 text-[10px] font-semibold text-ink transition hover:border-line-strong/40 hover:bg-surface"
               onClick={() => onMinimize(appId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
@@ -147,7 +147,7 @@ export function WindowFrame({
               -
             </button>
             <button
-              className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
+              className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
               onClick={() => onToggleMaximize(appId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
@@ -171,7 +171,7 @@ export function WindowFrame({
               )}
             </button>
             <button
-              className="flex h-6 min-w-[1.9rem] items-center justify-center rounded-md border border-red-400/35 bg-red-500/10 px-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/55 hover:bg-red-500/20"
+              className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-danger/35 bg-danger/10 px-1.5 text-[10px] font-semibold text-danger-ink transition hover:border-danger/55 hover:bg-danger/20"
               onClick={() => void onClose(appId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
@@ -182,7 +182,9 @@ export function WindowFrame({
           </div>
         </div>
 
-        {children}
+        <div className="min-h-0 flex-1">
+          {children}
+        </div>
       </div>
     </div>
   );

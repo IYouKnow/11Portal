@@ -8,6 +8,8 @@ import {
   listTerminalSessions,
   type TerminalSession,
 } from "../lib/api";
+import { type ResolvedTheme, getTerminalTheme } from "../theme-config";
+import { useTheme } from "../theme-context";
 
 type TerminalPanelProps = {
   active: boolean;
@@ -24,6 +26,7 @@ type SessionHostMap = Record<string, HTMLDivElement | null>;
 export const TerminalPanel = memo(function TerminalPanel({
   active,
 }: TerminalPanelProps) {
+  const { resolvedTheme } = useTheme();
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -72,7 +75,7 @@ export const TerminalPanel = memo(function TerminalPanel({
         continue;
       }
 
-      const runtime = createSessionRuntime(session.id, host);
+      const runtime = createSessionRuntime(session.id, host, resolvedTheme);
       runtimesRef.current.set(session.id, runtime);
     }
 
@@ -86,7 +89,14 @@ export const TerminalPanel = memo(function TerminalPanel({
       runtime.terminal.dispose();
       runtimesRef.current.delete(sessionId);
     }
-  }, [sessions]);
+  }, [resolvedTheme, sessions]);
+
+  useEffect(() => {
+    const theme = getTerminalTheme(resolvedTheme);
+    for (const runtime of runtimesRef.current.values()) {
+      runtime.terminal.options.theme = theme;
+    }
+  }, [resolvedTheme]);
 
   useEffect(() => {
     if (!activeSessionId || !active) {
@@ -181,7 +191,7 @@ export const TerminalPanel = memo(function TerminalPanel({
       return;
     }
 
-    const nextRuntime = createSessionRuntime(sessionId, host);
+    const nextRuntime = createSessionRuntime(sessionId, host, resolvedTheme);
     runtimesRef.current.set(sessionId, nextRuntime);
   };
 
@@ -236,9 +246,9 @@ export const TerminalPanel = memo(function TerminalPanel({
   };
 
   return (
-    <div className="h-[calc(100%-32px)] w-full bg-[#05070c]">
-      <div className="flex h-full flex-col overflow-hidden bg-[#05070c]">
-        <div className="border-b border-white/10 bg-black/30 px-3 py-2">
+    <div className="h-full w-full bg-panel">
+      <div className="flex h-full flex-col overflow-hidden bg-panel">
+        <div className="border-b border-line bg-window-chrome/80 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
             {sessions.map((session) => {
               const isActive = session.id === activeSessionId;
@@ -248,8 +258,8 @@ export const TerminalPanel = memo(function TerminalPanel({
                   key={session.id}
                   className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-xs transition ${
                     isActive
-                      ? "border-accent/45 bg-accent/12 text-slate-100"
-                      : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
+                      ? "border-accent/45 bg-accent/12 text-ink"
+                      : "border-line bg-surface/80 text-muted hover:border-line-strong/40 hover:bg-surface"
                   }`}
                 >
                   <button
@@ -261,7 +271,7 @@ export const TerminalPanel = memo(function TerminalPanel({
                   </button>
                   <button
                     aria-label={`Close ${session.title}`}
-                    className="rounded-md px-1 text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+                    className="rounded-md px-1 text-muted transition hover:bg-surface hover:text-ink"
                     onClick={() => void handleCloseSession(session.id)}
                     type="button"
                   >
@@ -290,14 +300,14 @@ export const TerminalPanel = memo(function TerminalPanel({
         </div>
 
         {error ? (
-          <div className="border-b border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+          <div className="border-b border-danger/20 bg-danger/10 px-3 py-2 text-xs text-danger-ink">
             {error}
           </div>
         ) : null}
 
         <div className="relative flex-1 px-3 pb-3 pt-3">
           {sessions.length === 0 && !isCreatingSession ? (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-sm text-slate-400">
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-line bg-surface/70 text-sm text-muted">
               No terminal sessions yet.
             </div>
           ) : null}
@@ -319,17 +329,18 @@ export const TerminalPanel = memo(function TerminalPanel({
   );
 });
 
-function createSessionRuntime(sessionId: string, host: HTMLDivElement): SessionRuntime {
+function createSessionRuntime(
+  sessionId: string,
+  host: HTMLDivElement,
+  resolvedTheme: ResolvedTheme,
+): SessionRuntime {
   host.innerHTML = "";
 
   const terminal = new Terminal({
     cursorBlink: true,
     fontFamily: "Consolas, 'Courier New', monospace",
     fontSize: 13,
-    theme: {
-      background: "#030712",
-      foreground: "#e2e8f0",
-    },
+    theme: getTerminalTheme(resolvedTheme),
   });
 
   const fitAddon = new FitAddon();

@@ -20,9 +20,9 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
       <div className="absolute inset-0 bg-portal-grid bg-[length:36px_36px] opacity-20" />
       <div className="absolute inset-x-0 top-[-10rem] mx-auto h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
 
-      <section className="relative w-full max-w-md rounded-3xl border border-white/10 bg-panel/90 p-8 shadow-soft backdrop-blur">
+      <section className="relative w-full max-w-md rounded-3xl border border-line bg-panel/90 p-8 shadow-soft backdrop-blur">
         <div className="mb-8">
-          <div className="mb-4 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.28em] text-muted">
+          <div className="mb-4 inline-flex rounded-full border border-line bg-surface/80 px-3 py-1 text-xs uppercase tracking-[0.28em] text-muted">
             Portal
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-ink">
@@ -38,7 +38,7 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
           <label className="block">
             <span className="mb-2 block text-sm text-muted">Email</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
@@ -51,7 +51,7 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
           <label className="block">
             <span className="mb-2 block text-sm text-muted">Password</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
@@ -62,7 +62,7 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
           </label>
 
           {error ? (
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-ink">
               {error}
             </div>
           ) : null}

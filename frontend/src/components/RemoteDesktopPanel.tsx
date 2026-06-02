@@ -179,9 +179,9 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
   const canEmbed = enabled && sessionURL.trim() !== "";
 
   return (
-    <div className="grid h-[calc(100%-32px)] grid-cols-[320px_1fr] bg-[#05070b]">
-      <aside className="flex flex-col border-r border-white/10 bg-black/35">
-        <div className="border-b border-white/10 px-5 py-4">
+    <div className="grid h-full grid-cols-[320px_1fr] bg-panel">
+      <aside className="flex flex-col border-r border-line bg-panel/95">
+        <div className="border-b border-line px-5 py-4">
           <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
             Remote Desktop
           </p>
@@ -192,13 +192,13 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
           </p>
         </div>
 
-        <form className="space-y-3 border-b border-white/10 px-5 py-4" onSubmit={handleSaveProfile}>
+        <form className="space-y-3 border-b border-line px-5 py-4" onSubmit={handleSaveProfile}>
           <label className="block">
             <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
               Profile name
             </span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
               onChange={(event) => setName(event.target.value)}
               placeholder="Production Windows Server"
               value={name}
@@ -210,7 +210,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
               Host
             </span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
               onChange={(event) => setHost(event.target.value)}
               placeholder="10.0.0.25"
               value={host}
@@ -223,7 +223,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                 Port
               </span>
               <input
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                 onChange={(event) => setPort(event.target.value)}
                 placeholder="3389"
                 value={port}
@@ -235,7 +235,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                 Domain
               </span>
               <input
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                 onChange={(event) => setDomain(event.target.value)}
                 placeholder="CONTOSO"
                 value={domain}
@@ -248,17 +248,17 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
               Default username
             </span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
               onChange={(event) => setProfileUsername(event.target.value)}
               placeholder="Administrator"
               value={profileUsername}
             />
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-ink">
+          <label className="flex items-center gap-3 rounded-2xl border border-line bg-panel/70 px-4 py-3 text-sm text-ink">
             <input
               checked={ignoreCert}
-              className="h-4 w-4 accent-sky-400"
+              className="h-4 w-4 accent-accent"
               onChange={(event) => setIgnoreCert(event.target.checked)}
               type="checkbox"
             />
@@ -277,14 +277,14 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs uppercase tracking-[0.22em] text-muted">Profiles</p>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-muted">
+            <span className="rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[11px] text-muted">
               {profiles.length}
             </span>
           </div>
 
           <div className="mt-4 space-y-3">
             {loadingProfiles ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-muted">
+              <div className="rounded-2xl border border-dashed border-line bg-surface/70 p-4 text-sm text-muted">
                 Loading saved machines...
               </div>
             ) : profiles.length > 0 ? (
@@ -297,7 +297,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                     className={`block w-full rounded-2xl border p-4 text-left transition ${
                       isSelected
                         ? "border-accent/40 bg-accent/10"
-                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                        : "border-line bg-surface/80 hover:bg-surface"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -316,7 +316,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                         </p>
                       </button>
                       <button
-                        className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-muted transition hover:text-ink"
+                        className="rounded-xl border border-line bg-panel/70 px-3 py-2 text-xs text-muted transition hover:text-ink"
                         onClick={() => void handleDeleteProfile(profile.id)}
                         type="button"
                       >
@@ -327,7 +327,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                 );
               })
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-6 text-muted">
+              <div className="rounded-2xl border border-dashed border-line bg-surface/70 p-4 text-sm leading-6 text-muted">
                 No saved machines yet.
               </div>
             )}
@@ -336,7 +336,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
       </aside>
 
       <div className="flex min-h-0 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-black/25 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-line bg-window-chrome/80 px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-muted">Gateway</p>
             <h2 className="mt-1 text-lg font-medium text-ink">
@@ -346,7 +346,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
 
           {canEmbed ? (
             <a
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-ink transition hover:bg-white/10"
+              className="rounded-2xl border border-line bg-surface/80 px-4 py-2 text-sm text-ink transition hover:bg-surface"
               href={sessionURL}
               rel="noreferrer"
               target="_blank"
@@ -358,7 +358,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
 
         {enabled ? (
           <>
-            <div className="border-b border-white/10 bg-black/20 px-5 py-4">
+            <div className="border-b border-line bg-panel/85 px-5 py-4">
               {selectedProfile ? (
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
@@ -372,13 +372,13 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
 
                   <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row">
                     <input
-                      className="min-w-[220px] rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                      className="min-w-[220px] rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                       onChange={(event) => setSessionUsername(event.target.value)}
                       placeholder="Username for this session"
                       value={sessionUsername}
                     />
                     <input
-                      className="min-w-[240px] rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                      className="min-w-[240px] rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="Password for this session"
                       type="password"
@@ -394,7 +394,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                     </button>
                     {sessionURL ? (
                       <button
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink transition hover:bg-white/10"
+                        className="rounded-2xl border border-line bg-surface/80 px-4 py-3 text-sm text-ink transition hover:bg-surface"
                         onClick={() => setSessionURL("")}
                         type="button"
                       >
@@ -410,7 +410,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
               )}
 
               {error ? (
-                <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-ink">
                   {error}
                 </div>
               ) : null}
@@ -418,13 +418,13 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
 
             {sessionURL ? (
               <iframe
-                className="h-full w-full border-0 bg-black"
+                className="h-full w-full border-0 bg-canvas"
                 src={sessionURL}
                 title="Portal Remote Desktop"
               />
             ) : (
               <div className="flex h-full items-center justify-center p-8">
-                <div className="max-w-lg rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
+                <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
                   <h3 className="text-2xl font-medium text-ink">Remote Desktop ready</h3>
                   <p className="mt-3 text-sm leading-7 text-muted">
                     Save a machine, enter credentials at connect time, and Portal will open
@@ -436,7 +436,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
           </>
         ) : (
           <div className="flex h-full items-center justify-center p-8">
-            <div className="max-w-lg rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
+            <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
               <h3 className="text-2xl font-medium text-ink">Remote Desktop</h3>
               <p className="mt-3 text-sm leading-7 text-muted">
                 Configure Portal&apos;s internal Guacamole gateway to enable native RDP

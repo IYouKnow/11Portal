@@ -62,8 +62,8 @@ export function DesktopSurface({
           className={`group absolute flex w-[88px] flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition ${
             app.available
               ? selectedDesktopApps.includes(app.id)
-                ? "bg-white/10"
-                : "hover:bg-white/10 focus-visible:bg-white/10"
+                ? "bg-surface/70"
+                : "hover:bg-surface/70 focus-visible:bg-surface/70"
               : "opacity-50"
           } select-none ${
             draggingDesktopIcon === app.id
@@ -90,15 +90,15 @@ export function DesktopSurface({
           <div
             className={`flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-sm transition ${
               selectedDesktopApps.includes(app.id)
-                ? "border-white/20 bg-white/10"
+                ? "border-line-strong/40 bg-surface/70"
                 : activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
                   ? "border-accent/45 bg-accent/15 shadow-[0_0_22px_rgba(56,189,248,0.18)]"
-                  : "border-white/10 bg-black/25 group-hover:border-white/20 group-hover:bg-white/10"
+                  : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
             }`}
           >
             <AppIcon appId={app.id} />
           </div>
-          <span className="max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 text-ink [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]">
+          <span className="desktop-icon-label max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 text-ink">
             {app.label}
           </span>
         </button>
@@ -106,7 +106,7 @@ export function DesktopSurface({
 
       {desktopSelection ? (
         <div
-          className="pointer-events-none absolute border border-sky-300/70 bg-sky-400/15 shadow-[0_0_0_1px_rgba(125,211,252,0.25)_inset]"
+          className="pointer-events-none absolute border border-info/70 bg-selection/15 shadow-[0_0_0_1px_rgba(var(--color-selection),0.25)_inset]"
           style={getSelectionBounds(desktopSelection)}
         />
       ) : null}

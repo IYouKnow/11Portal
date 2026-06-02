@@ -1,6 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import type { User } from "../../lib/api";
-import { wallpaperPresets } from "./constants";
+import { useTheme } from "../../theme-context";
+import { getWallpaperOverlay, wallpaperPresets } from "./constants";
 import type { DesktopLaunchMode, WallpaperPresetId, WallpaperState } from "./types";
 
 type SettingsPanelProps = {
@@ -54,9 +55,11 @@ export function SettingsPanel({
   wallpaper,
   wallpaperError,
 }: SettingsPanelProps) {
+  const { mode, resolvedTheme, setMode } = useTheme();
+
   return (
-    <div className="grid h-[calc(100%-32px)] min-h-0 grid-cols-[220px_1fr] overflow-hidden bg-[#06080d]">
-      <aside className="settings-scrollbar overflow-y-auto border-r border-white/10 bg-black/30 p-4">
+    <div className="grid h-full min-h-0 grid-cols-[220px_1fr] overflow-hidden bg-panel">
+      <aside className="settings-scrollbar overflow-y-auto border-r border-line bg-panel/95 p-4">
         <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
           Settings
         </p>
@@ -66,7 +69,7 @@ export function SettingsPanel({
             Manage who can enter Portal and which role they receive.
           </p>
         </div>
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mt-4 rounded-2xl border border-line bg-surface/80 p-4">
           <p className="text-xs uppercase tracking-[0.22em] text-muted">
             Signed in
           </p>
@@ -76,7 +79,54 @@ export function SettingsPanel({
       </aside>
 
       <div className="settings-scrollbar min-h-0 overflow-y-auto p-5">
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+        <section className="rounded-3xl border border-line bg-surface/80 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-muted">
+                Appearance
+              </p>
+              <h2 className="mt-2 text-xl font-medium text-ink">Theme</h2>
+            </div>
+            <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-xs text-muted">
+              {mode === "system"
+                ? `System (${resolvedTheme})`
+                : `${mode[0].toUpperCase()}${mode.slice(1)}`}
+            </span>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Choose a light or dark interface, or follow this device&apos;s system setting.
+          </p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {(["light", "dark", "system"] as const).map((themeMode) => {
+              const isSelected = mode === themeMode;
+              const label = `${themeMode[0].toUpperCase()}${themeMode.slice(1)}`;
+
+              return (
+                <button
+                  key={themeMode}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    isSelected
+                      ? "border-accent/45 bg-accent/10"
+                      : "border-line bg-surface-soft hover:border-line-strong/40 hover:bg-surface"
+                  }`}
+                  onClick={() => setMode(themeMode)}
+                  type="button"
+                >
+                  <p className="text-sm font-medium text-ink">{label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {themeMode === "system"
+                      ? `Currently resolves to ${resolvedTheme}.`
+                      : `Always use the ${themeMode} interface.`}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-3xl border border-line bg-surface/80 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-muted">
@@ -85,7 +135,7 @@ export function SettingsPanel({
               <h2 className="mt-2 text-xl font-medium text-ink">Wallpaper</h2>
             </div>
             <button
-              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-muted transition hover:text-ink"
+              className="rounded-2xl border border-line bg-panel/70 px-3 py-2 text-xs text-muted transition hover:text-ink"
               onClick={() => onApplyPresetWallpaper("gradient")}
               type="button"
             >
@@ -104,7 +154,7 @@ export function SettingsPanel({
                   className={`overflow-hidden rounded-2xl border text-left transition ${
                     isSelected
                       ? "border-accent/45 bg-accent/10"
-                      : "border-white/10 bg-black/20 hover:border-white/20"
+                      : "border-line bg-panel/70 hover:border-line-strong/40"
                   }`}
                   onClick={() => onApplyPresetWallpaper(preset.id as WallpaperPresetId)}
                   type="button"
@@ -113,8 +163,14 @@ export function SettingsPanel({
                     className="h-24 w-full"
                     style={{
                       backgroundImage: preset.image
-                        ? `${preset.overlay}, url("${preset.image}")`
-                        : preset.overlay,
+                        ? `${getWallpaperOverlay(
+                            preset.id as WallpaperPresetId,
+                            resolvedTheme,
+                          )}, url("${preset.image}")`
+                        : getWallpaperOverlay(
+                            preset.id as WallpaperPresetId,
+                            resolvedTheme,
+                          ),
                       backgroundPosition: "center",
                       backgroundSize: "cover",
                     }}
@@ -129,7 +185,7 @@ export function SettingsPanel({
             <label className="block">
               <span className="mb-2 block text-sm text-muted">Image URL</span>
               <input
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                 onChange={(event) => onCustomWallpaperUrlChange(event.target.value)}
                 placeholder="https://example.com/wallpaper.jpg"
                 type="url"
@@ -143,7 +199,7 @@ export function SettingsPanel({
               >
                 Apply image URL
               </button>
-              <label className="cursor-pointer rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-ink transition hover:bg-white/10">
+              <label className="cursor-pointer rounded-2xl border border-line bg-panel/70 px-4 py-3 text-sm text-ink transition hover:bg-surface">
                 Upload image
                 <input
                   accept="image/*"
@@ -160,13 +216,13 @@ export function SettingsPanel({
           </p>
 
           {wallpaperError ? (
-            <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mt-4 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-ink">
               {wallpaperError}
             </div>
           ) : null}
         </section>
 
-        <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-5">
+        <section className="mt-4 rounded-3xl border border-line bg-surface/80 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-muted">
@@ -174,7 +230,7 @@ export function SettingsPanel({
               </p>
               <h2 className="mt-2 text-xl font-medium text-ink">App launch</h2>
             </div>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-muted">
+            <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-xs text-muted">
               Default: double click
             </span>
           </div>
@@ -184,10 +240,10 @@ export function SettingsPanel({
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20 hover:bg-white/5">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-panel/70 p-4 transition hover:border-line-strong/40 hover:bg-surface">
               <input
                 checked={desktopLaunchMode === "double"}
-                className="mt-1 h-4 w-4 accent-sky-400"
+                className="mt-1 h-4 w-4 accent-accent"
                 name="desktop-launch-mode"
                 onChange={() => onDesktopLaunchModeChange("double")}
                 type="radio"
@@ -200,10 +256,10 @@ export function SettingsPanel({
               </div>
             </label>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20 hover:bg-white/5">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-panel/70 p-4 transition hover:border-line-strong/40 hover:bg-surface">
               <input
                 checked={desktopLaunchMode === "single"}
-                className="mt-1 h-4 w-4 accent-sky-400"
+                className="mt-1 h-4 w-4 accent-accent"
                 name="desktop-launch-mode"
                 onChange={() => onDesktopLaunchModeChange("single")}
                 type="radio"
@@ -217,7 +273,7 @@ export function SettingsPanel({
             </label>
           </div>
 
-          <div className="mt-6 border-t border-white/10 pt-6">
+          <div className="mt-6 border-t border-line pt-6">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium text-ink">Dock</h3>
@@ -225,13 +281,13 @@ export function SettingsPanel({
                   Hide the bottom dock to keep the desktop clear.
                 </p>
               </div>
-              <label className="flex cursor-pointer items-center gap-3 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-ink transition hover:border-white/20 hover:bg-white/5">
+              <label className="flex cursor-pointer items-center gap-3 rounded-full border border-line bg-panel/70 px-3 py-2 text-sm text-ink transition hover:border-line-strong/40 hover:bg-surface">
                 <span className="text-xs uppercase tracking-[0.22em] text-muted">
                   {showDock ? "On" : "Off"}
                 </span>
                 <input
                   checked={showDock}
-                  className="h-4 w-4 accent-sky-400"
+                  className="h-4 w-4 accent-accent"
                   onChange={(event) => onShowDockChange(event.target.checked)}
                   type="checkbox"
                 />
@@ -242,7 +298,7 @@ export function SettingsPanel({
 
         {isAdmin ? (
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <section className="rounded-3xl border border-line bg-surface/80 p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.28em] text-muted">
@@ -250,7 +306,7 @@ export function SettingsPanel({
                   </p>
                   <h2 className="mt-2 text-xl font-medium text-ink">Team users</h2>
                 </div>
-                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-muted">
+                <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-xs text-muted">
                   {users.length} accounts
                 </span>
               </div>
@@ -259,7 +315,7 @@ export function SettingsPanel({
                 {users.map((account) => (
                   <div
                     key={account.id}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                    className="flex items-center justify-between rounded-2xl border border-line bg-panel/70 px-4 py-3"
                   >
                     <div>
                       <p className="text-sm font-medium text-ink">{account.email}</p>
@@ -270,8 +326,8 @@ export function SettingsPanel({
                     <span
                       className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
                         account.role === "admin"
-                          ? "bg-emerald-500/15 text-emerald-200"
-                          : "bg-sky-500/15 text-sky-200"
+                          ? "bg-success/15 text-success-ink"
+                          : "bg-info/15 text-info-ink"
                       }`}
                     >
                       {account.role}
@@ -281,7 +337,7 @@ export function SettingsPanel({
               </div>
             </section>
 
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <section className="rounded-3xl border border-line bg-surface/80 p-5">
               <p className="text-xs uppercase tracking-[0.28em] text-muted">
                 Admin only
               </p>
@@ -295,7 +351,7 @@ export function SettingsPanel({
                 <label className="block">
                   <span className="mb-2 block text-sm text-muted">Email</span>
                   <input
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                     onChange={(event) => onNewUserEmailChange(event.target.value)}
                     required
                     type="email"
@@ -308,7 +364,7 @@ export function SettingsPanel({
                     Temporary password
                   </span>
                   <input
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                     minLength={10}
                     onChange={(event) => onNewUserPasswordChange(event.target.value)}
                     required
@@ -320,7 +376,7 @@ export function SettingsPanel({
                 <label className="block">
                   <span className="mb-2 block text-sm text-muted">Role</span>
                   <select
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
+                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
                     onChange={(event) => onNewUserRoleChange(event.target.value as User["role"])}
                     value={newUserRole}
                   >
@@ -340,7 +396,7 @@ export function SettingsPanel({
             </section>
           </div>
         ) : (
-          <section className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <section className="mt-4 rounded-3xl border border-line bg-surface/80 p-5">
             <p className="text-xs uppercase tracking-[0.28em] text-muted">
               Access
             </p>
@@ -353,7 +409,7 @@ export function SettingsPanel({
         )}
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-ink">
             {error}
           </div>
         ) : null}

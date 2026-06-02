@@ -17,7 +17,7 @@ export function Taskbar({
 }: TaskbarProps) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-      <div className="pointer-events-auto flex items-end gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      <div className="pointer-events-auto flex items-end gap-2 rounded-xl border border-line bg-panel/80 px-3 py-2.5 shadow-floating backdrop-blur-2xl">
         {apps.map((app) => (
           <button
             key={app.id}
@@ -41,7 +41,7 @@ export function Taskbar({
             }
             type="button"
           >
-            <span className="pointer-events-none absolute -top-9 rounded-md border border-white/10 bg-black/75 px-2.5 py-1 text-[11px] text-ink opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100">
+            <span className="pointer-events-none absolute -top-9 rounded-md border border-line bg-panel/95 px-2.5 py-1 text-[11px] text-ink opacity-0 shadow-soft transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100">
               {app.label}
             </span>
             <span
@@ -49,8 +49,8 @@ export function Taskbar({
                 activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
                   ? "border-accent/45 bg-accent/15 shadow-[0_10px_28px_rgba(56,189,248,0.22)]"
                   : app.available
-                    ? "border-white/10 bg-white/8 group-hover:border-white/20 group-hover:bg-white/14"
-                    : "border-white/10 bg-black/20"
+                    ? "border-line bg-surface/80 group-hover:border-line-strong/40 group-hover:bg-surface"
+                    : "border-line bg-surface-strong/60"
               }`}
             >
               <AppIcon appId={app.id} />
@@ -60,7 +60,7 @@ export function Taskbar({
                 className={`mt-2 h-1.5 rounded-full transition-all ${
                   activeApp === app.id && !isAppMinimized(app.id)
                     ? "w-5 bg-accent"
-                    : "w-1.5 bg-white/70"
+                    : "w-1.5 bg-line-strong"
                 }`}
               />
             ) : null}

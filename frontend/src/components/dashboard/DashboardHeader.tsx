@@ -16,7 +16,7 @@ export function DashboardHeader({
   onLogout,
 }: DashboardHeaderProps) {
   return (
-    <header className="relative z-10 flex items-center justify-between border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur">
+    <header className="relative z-10 flex items-center justify-between border-b border-line bg-panel/80 px-5 py-4 backdrop-blur">
       <div className="flex items-center gap-4">
         <div>
           <p className="text-lg font-medium text-ink">{activeWorkspace}</p>
@@ -24,27 +24,27 @@ export function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted sm:flex">
+        <div className="hidden items-center gap-2 rounded-full border border-line bg-surface/80 px-3 py-1 text-xs text-muted sm:flex">
           <span className="text-ink">{user.email}</span>
           <span
             className={`rounded-full px-2 py-0.5 uppercase tracking-[0.22em] ${
               isAdmin
-                ? "bg-emerald-500/15 text-emerald-200"
-                : "bg-sky-500/15 text-sky-200"
+                ? "bg-success/15 text-success-ink"
+                : "bg-info/15 text-info-ink"
             }`}
           >
             {user.role}
           </span>
         </div>
         <button
-          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-ink transition hover:bg-white/10"
+          className="rounded-2xl border border-line bg-surface/80 px-4 py-2 text-sm text-ink transition hover:bg-surface"
           onClick={onRefresh}
           type="button"
         >
           Refresh
         </button>
         <button
-          className="rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm text-muted transition hover:text-ink"
+          className="rounded-2xl border border-line bg-surface-strong/50 px-4 py-2 text-sm text-muted transition hover:text-ink"
           onClick={onLogout}
           type="button"
         >

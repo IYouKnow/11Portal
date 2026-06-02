@@ -3,10 +3,42 @@
 @tailwind utilities;
 
 :root {
-  color: #f4f4f5;
-  background:
-    radial-gradient(circle at top, rgba(125, 211, 252, 0.14), transparent 30%),
-    linear-gradient(180deg, #0b0b0d 0%, #09090b 100%);
+  --color-canvas: 244 247 251;
+  --color-panel: 255 255 255;
+  --color-surface: 248 250 252;
+  --color-surface-soft: 255 255 255;
+  --color-surface-strong: 226 232 240;
+  --color-line: 203 213 225;
+  --color-line-strong: 148 163 184;
+  --color-ink: 15 23 42;
+  --color-muted: 71 85 105;
+  --color-accent: 14 165 233;
+  --color-accent-strong: 3 105 161;
+  --color-success: 22 163 74;
+  --color-success-ink: 20 83 45;
+  --color-warning: 217 119 6;
+  --color-warning-ink: 146 64 14;
+  --color-danger: 220 38 38;
+  --color-danger-ink: 127 29 29;
+  --color-info: 37 99 235;
+  --color-info-ink: 30 64 175;
+  --color-window: 255 255 255;
+  --color-window-active: 248 250 252;
+  --color-window-chrome: 241 245 249;
+  --color-selection: 14 165 233;
+  --grid-line: 51 65 85;
+  --body-background:
+    radial-gradient(circle at top, rgba(14, 165, 233, 0.1), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef3f9 100%);
+  --body-overlay:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.7), transparent 22%),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.12), transparent 24%);
+  --shadow-soft: 0 24px 80px rgba(15, 23, 42, 0.12);
+  --shadow-floating: 0 28px 70px rgba(15, 23, 42, 0.16);
+  --scrollbar-thumb: rgba(71, 85, 105, 0.28);
+  --scrollbar-thumb-hover: rgba(71, 85, 105, 0.44);
+  --desktop-icon-shadow: 0 1px 2px rgba(255, 255, 255, 0.65);
+  --app-top-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent);
   font-family:
     Inter,
     ui-sans-serif,
@@ -15,6 +47,45 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+}
+
+[data-theme="dark"] {
+  --color-canvas: 9 9 11;
+  --color-panel: 17 17 19;
+  --color-surface: 24 24 27;
+  --color-surface-soft: 15 23 42;
+  --color-surface-strong: 0 0 0;
+  --color-line: 39 39 42;
+  --color-line-strong: 125 211 252;
+  --color-ink: 244 244 245;
+  --color-muted: 161 161 170;
+  --color-accent: 125 211 252;
+  --color-accent-strong: 186 230 253;
+  --color-success: 52 211 153;
+  --color-success-ink: 209 250 229;
+  --color-warning: 245 158 11;
+  --color-warning-ink: 254 243 199;
+  --color-danger: 239 68 68;
+  --color-danger-ink: 254 202 202;
+  --color-info: 56 189 248;
+  --color-info-ink: 186 230 253;
+  --color-window: 7 9 13;
+  --color-window-active: 7 9 13;
+  --color-window-chrome: 10 14 24;
+  --color-selection: 56 189 248;
+  --grid-line: 255 255 255;
+  --body-background:
+    radial-gradient(circle at top, rgba(125, 211, 252, 0.14), transparent 30%),
+    linear-gradient(180deg, #0b0b0d 0%, #09090b 100%);
+  --body-overlay:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.05), transparent 24%),
+    radial-gradient(circle at 100% 0%, rgba(125, 211, 252, 0.12), transparent 26%);
+  --shadow-soft: 0 24px 80px rgba(0, 0, 0, 0.45);
+  --shadow-floating: 0 28px 70px rgba(0, 0, 0, 0.45);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+  --desktop-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  --app-top-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
 }
 
 * {
@@ -30,10 +101,12 @@ body,
 
 body {
   min-height: 100vh;
-  background-color: #09090b;
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.05), transparent 24%),
-    radial-gradient(circle at 100% 0%, rgba(125, 211, 252, 0.12), transparent 26%);
+  color: rgb(var(--color-ink));
+  background-color: rgb(var(--color-canvas));
+}
+
+#root {
+  min-height: 100vh;
 }
 
 button,
@@ -41,18 +114,22 @@ input {
   font: inherit;
 }
 
+.desktop-icon-label {
+  text-shadow: var(--desktop-icon-shadow);
+}
+
 .terminal-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
 
 .terminal-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--scrollbar-thumb);
   border-radius: 9999px;
 }
 
 .settings-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .settings-scrollbar::-webkit-scrollbar {
@@ -66,11 +143,11 @@ input {
 .settings-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--scrollbar-thumb);
   background-clip: padding-box;
 }
 
 .settings-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
