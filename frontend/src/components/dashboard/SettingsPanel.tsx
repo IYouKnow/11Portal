@@ -12,24 +12,14 @@ type SettingsPanelProps = {
   customWallpaperUrl: string;
   desktopLaunchMode: DesktopLaunchMode;
   error: string | null;
-  isAdmin: boolean;
-  isCreatingUser: boolean;
-  newUserEmail: string;
-  newUserPassword: string;
-  newUserRole: User["role"];
   onApplyPresetWallpaper: (presetId: WallpaperPresetId) => void;
-  onCreateUser: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onCustomWallpaperUrlChange: (value: string) => void;
   onDesktopLaunchModeChange: (mode: DesktopLaunchMode) => void;
   onShowDockChange: (value: boolean) => void;
-  onNewUserEmailChange: (value: string) => void;
-  onNewUserPasswordChange: (value: string) => void;
-  onNewUserRoleChange: (role: User["role"]) => void;
   onWallpaperUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onWallpaperUrlSubmit: (event: FormEvent<HTMLFormElement>) => void;
   showDock: boolean;
   user: User;
-  users: User[];
   wallpaper: WallpaperState;
   wallpaperError: string | null;
 };
@@ -38,24 +28,14 @@ export function SettingsPanel({
   customWallpaperUrl,
   desktopLaunchMode,
   error,
-  isAdmin,
-  isCreatingUser,
-  newUserEmail,
-  newUserPassword,
-  newUserRole,
   onApplyPresetWallpaper,
-  onCreateUser,
   onCustomWallpaperUrlChange,
   onDesktopLaunchModeChange,
   onShowDockChange,
-  onNewUserEmailChange,
-  onNewUserPasswordChange,
-  onNewUserRoleChange,
   onWallpaperUpload,
   onWallpaperUrlSubmit,
   showDock,
   user,
-  users,
   wallpaper,
   wallpaperError,
 }: SettingsPanelProps) {
@@ -67,12 +47,6 @@ export function SettingsPanel({
         <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
           Settings
         </p>
-        <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4">
-          <p className="text-sm font-medium text-ink">Access control</p>
-          <p className="mt-2 text-xs leading-5 text-muted">
-            Manage who can enter Portal and which role they receive.
-          </p>
-        </div>
         <div className="mt-4 rounded-2xl border border-line bg-surface/80 p-4">
           <p className="text-xs uppercase tracking-[0.22em] text-muted">
             Signed in
@@ -102,8 +76,8 @@ export function SettingsPanel({
             Choose a light or dark interface, or follow this device&apos;s system setting.
           </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {(["light", "dark", "system"] as const).map((themeMode) => {
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {(["light", "dark"] as const).map((themeMode) => {
               const isSelected = mode === themeMode;
               const label = `${themeMode[0].toUpperCase()}${themeMode.slice(1)}`;
 
@@ -120,9 +94,7 @@ export function SettingsPanel({
                 >
                   <p className="text-sm font-medium text-ink">{label}</p>
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    {themeMode === "system"
-                      ? `Currently resolves to ${resolvedTheme}.`
-                      : `Always use the ${themeMode} interface.`}
+                    {`Always use the ${themeMode} interface.`}
                   </p>
                 </button>
               );
@@ -297,118 +269,6 @@ export function SettingsPanel({
             </div>
           </div>
         </section>
-
-        {isAdmin ? (
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <section className="rounded-3xl border border-line bg-surface/80 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.28em] text-muted">
-                    Access
-                  </p>
-                  <h2 className="mt-2 text-xl font-medium text-ink">Team users</h2>
-                </div>
-                <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-xs text-muted">
-                  {users.length} accounts
-                </span>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {users.map((account) => (
-                  <div
-                    key={account.id}
-                    className="flex items-center justify-between rounded-2xl border border-line bg-panel/70 px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-ink">{account.email}</p>
-                      <p className="mt-1 text-xs text-muted">
-                        Created {new Date(account.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
-                        account.role === "admin"
-                          ? "bg-success/15 text-success-ink"
-                          : "bg-info/15 text-info-ink"
-                      }`}
-                    >
-                      {account.role}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-line bg-surface/80 p-5">
-              <p className="text-xs uppercase tracking-[0.28em] text-muted">
-                Admin only
-              </p>
-              <h2 className="mt-2 text-xl font-medium text-ink">Create account</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Registration is disabled publicly. Create credentials here and
-                pass them to the user directly.
-              </p>
-
-              <form className="mt-5 space-y-4" onSubmit={onCreateUser}>
-                <label className="block">
-                  <span className="mb-2 block text-sm text-muted">Email</span>
-                  <input
-                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                    onChange={(event) => onNewUserEmailChange(event.target.value)}
-                    required
-                    type="email"
-                    value={newUserEmail}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm text-muted">
-                    Temporary password
-                  </span>
-                  <input
-                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                    minLength={10}
-                    onChange={(event) => onNewUserPasswordChange(event.target.value)}
-                    required
-                    type="password"
-                    value={newUserPassword}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm text-muted">Role</span>
-                  <select
-                    className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                    onChange={(event) => onNewUserRoleChange(event.target.value as User["role"])}
-                    value={newUserRole}
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </label>
-
-                <button
-                  className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={isCreatingUser}
-                  type="submit"
-                >
-                  {isCreatingUser ? "Creating account..." : "Create account"}
-                </button>
-              </form>
-            </section>
-          </div>
-        ) : (
-          <section className="mt-4 rounded-3xl border border-line bg-surface/80 p-5">
-            <p className="text-xs uppercase tracking-[0.28em] text-muted">
-              Access
-            </p>
-            <h2 className="mt-2 text-xl font-medium text-ink">User account</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Your account can access the Portal workspace. Admin accounts can
-              create and manage other users from this settings app.
-            </p>
-          </section>
-        )}
 
         {error ? (
           <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-ink">

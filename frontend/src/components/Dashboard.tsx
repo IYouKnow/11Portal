@@ -1245,24 +1245,14 @@ export function Dashboard({
         customWallpaperUrl={customWallpaperUrl}
         desktopLaunchMode={desktopLaunchMode}
         error={error}
-        isAdmin={isAdmin}
-        isCreatingUser={isCreatingUser}
-        newUserEmail={newUserEmail}
-        newUserPassword={newUserPassword}
-        newUserRole={newUserRole}
         onApplyPresetWallpaper={applyPresetWallpaper}
-        onCreateUser={handleCreateUser}
         onCustomWallpaperUrlChange={setCustomWallpaperUrl}
         onDesktopLaunchModeChange={setDesktopLaunchMode}
         onShowDockChange={setShowDock}
-        onNewUserEmailChange={setNewUserEmail}
-        onNewUserPasswordChange={setNewUserPassword}
-        onNewUserRoleChange={setNewUserRole}
         onWallpaperUpload={handleWallpaperUpload}
         onWallpaperUrlSubmit={handleWallpaperUrlSubmit}
         showDock={showDock}
         user={user}
-        users={users}
         wallpaper={wallpaper}
         wallpaperError={wallpaperError}
       />

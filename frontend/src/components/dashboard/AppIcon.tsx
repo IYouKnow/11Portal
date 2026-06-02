@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import type { AppID } from "./types";
 
 export function AppIcon({ appId }: { appId: AppID }) {
@@ -60,18 +61,6 @@ export function AppIcon({ appId }: { appId: AppID }) {
   }
 
   return (
-    <svg
-      aria-hidden="true"
-      className="h-7 w-7"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="3.25" />
-      <path d="M12 3.75v2.5M12 17.75v2.5M20.25 12h-2.5M6.25 12h-2.5M17.83 6.17l-1.76 1.76M7.93 16.07l-1.76 1.76M17.83 17.83l-1.76-1.76M7.93 7.93 6.17 6.17" />
-    </svg>
+    <Settings aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />
   );
 }
