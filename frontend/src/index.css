@@ -53,7 +53,7 @@
   --color-canvas: 9 9 11;
   --color-panel: 17 17 19;
   --color-surface: 24 24 27;
-  --color-surface-soft: 15 23 42;
+  --color-surface-soft: 20 20 23;
   --color-surface-strong: 0 0 0;
   --color-line: 39 39 42;
   --color-line-strong: 125 211 252;
@@ -71,21 +71,21 @@
   --color-info-ink: 186 230 253;
   --color-window: 7 9 13;
   --color-window-active: 7 9 13;
-  --color-window-chrome: 10 14 24;
+  --color-window-chrome: 16 16 19;
   --color-selection: 56 189 248;
   --grid-line: 255 255 255;
   --body-background:
-    radial-gradient(circle at top, rgba(125, 211, 252, 0.14), transparent 30%),
-    linear-gradient(180deg, #0b0b0d 0%, #09090b 100%);
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 28%),
+    linear-gradient(180deg, #111318 0%, #0b0d12 42%, #07090d 100%);
   --body-overlay:
-    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.05), transparent 24%),
-    radial-gradient(circle at 100% 0%, rgba(125, 211, 252, 0.12), transparent 26%);
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.04), transparent 24%),
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.02), transparent 26%);
   --shadow-soft: 0 24px 80px rgba(0, 0, 0, 0.45);
   --shadow-floating: 0 28px 70px rgba(0, 0, 0, 0.45);
   --scrollbar-thumb: rgba(255, 255, 255, 0.18);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
   --desktop-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
-  --app-top-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
+  --app-top-glow: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
 }
 
 * {

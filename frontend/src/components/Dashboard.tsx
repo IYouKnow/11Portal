@@ -17,6 +17,7 @@ import { RemoteDesktopPanel } from "./RemoteDesktopPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import {
   apps,
+  buildWallpaperBackgroundImage,
   CUSTOM_WALLPAPER_STORAGE_MARKER,
   DEFAULT_WALLPAPER,
   DESKTOP_ICON_HEIGHT,
@@ -1271,24 +1272,32 @@ export function Dashboard({
   const visibleApps = apps
     .filter((app) => windows[app.id].open && !windows[app.id].minimized)
     .sort((left, right) => windows[left.id].zIndex - windows[right.id].zIndex);
+  const showDesktopGrid =
+    wallpaper.mode === "preset" && wallpaper.presetId === DEFAULT_WALLPAPER;
+  const showTopGlow = showDesktopGrid;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-canvas text-ink">
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: wallpaper.image
-            ? `${wallpaper.overlay}, url("${wallpaper.image}")`
-            : wallpaper.overlay,
+          backgroundImage: buildWallpaperBackgroundImage(
+            wallpaper.overlay,
+            wallpaper.image,
+          ),
           backgroundPosition: "center",
           backgroundSize: "cover",
         }}
       />
-      <div className="absolute inset-0 bg-portal-grid bg-[length:52px_52px] opacity-[0.14]" />
-      <div
-        className="absolute inset-x-0 top-0 h-40"
-        style={{ background: "var(--app-top-glow)" }}
-      />
+      {showDesktopGrid ? (
+        <div className="absolute inset-0 bg-portal-grid bg-[length:52px_52px] opacity-[0.14]" />
+      ) : null}
+      {showTopGlow ? (
+        <div
+          className="absolute inset-x-0 top-0 h-40"
+          style={{ background: "var(--app-top-glow)" }}
+        />
+      ) : null}
 
       <div className="relative flex min-h-screen flex-col">
         <DashboardHeader

@@ -1,7 +1,11 @@
 import type { ChangeEvent, FormEvent } from "react";
 import type { User } from "../../lib/api";
 import { useTheme } from "../../theme-context";
-import { getWallpaperOverlay, wallpaperPresets } from "./constants";
+import {
+  buildWallpaperBackgroundImage,
+  getWallpaperOverlay,
+  wallpaperPresets,
+} from "./constants";
 import type { DesktopLaunchMode, WallpaperPresetId, WallpaperState } from "./types";
 
 type SettingsPanelProps = {
@@ -162,15 +166,13 @@ export function SettingsPanel({
                   <div
                     className="h-24 w-full"
                     style={{
-                      backgroundImage: preset.image
-                        ? `${getWallpaperOverlay(
-                            preset.id as WallpaperPresetId,
-                            resolvedTheme,
-                          )}, url("${preset.image}")`
-                        : getWallpaperOverlay(
-                            preset.id as WallpaperPresetId,
-                            resolvedTheme,
-                          ),
+                      backgroundImage: buildWallpaperBackgroundImage(
+                        getWallpaperOverlay(
+                          preset.id as WallpaperPresetId,
+                          resolvedTheme,
+                        ),
+                        preset.image,
+                      ),
                       backgroundPosition: "center",
                       backgroundSize: "cover",
                     }}

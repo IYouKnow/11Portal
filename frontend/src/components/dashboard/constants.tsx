@@ -79,7 +79,7 @@ export const wallpaperPresets: WallpaperPreset[] = [
       light:
         "radial-gradient(circle at top left,rgba(56,189,248,0.20),transparent 26%),radial-gradient(circle at bottom right,rgba(34,197,94,0.16),transparent 30%),linear-gradient(180deg,rgb(244,248,252) 0%,rgb(228,239,249) 58%,rgb(214,228,242) 100%)",
       dark:
-        "radial-gradient(circle at top left,rgba(125,211,252,0.18),transparent 24%),radial-gradient(circle at bottom right,rgba(16,185,129,0.14),transparent 28%),linear-gradient(180deg,rgba(8,12,22,0.82),rgba(4,6,10,0.98))",
+        "radial-gradient(circle at top left,rgba(255,255,255,0.06),transparent 22%),radial-gradient(circle at bottom right,rgba(71,85,105,0.12),transparent 30%),linear-gradient(180deg,rgb(20,24,31) 0%,rgb(13,16,22) 52%,rgb(7,9,13) 100%)",
     },
   },
   {
@@ -88,10 +88,8 @@ export const wallpaperPresets: WallpaperPreset[] = [
     image:
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
     overlay: {
-      light:
-        "linear-gradient(180deg,rgba(255,248,236,0.20),rgba(236,228,214,0.34))",
-      dark:
-        "linear-gradient(180deg,rgba(15,23,42,0.35),rgba(2,6,23,0.78))",
+      light: "",
+      dark: "",
     },
   },
   {
@@ -100,10 +98,8 @@ export const wallpaperPresets: WallpaperPreset[] = [
     image:
       "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
     overlay: {
-      light:
-        "linear-gradient(180deg,rgba(241,245,249,0.16),rgba(226,232,240,0.30))",
-      dark:
-        "linear-gradient(180deg,rgba(3,7,18,0.30),rgba(2,6,23,0.76))",
+      light: "",
+      dark: "",
     },
   },
   {
@@ -112,10 +108,8 @@ export const wallpaperPresets: WallpaperPreset[] = [
     image:
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
     overlay: {
-      light:
-        "linear-gradient(180deg,rgba(224,242,254,0.12),rgba(186,230,253,0.26))",
-      dark:
-        "linear-gradient(180deg,rgba(8,47,73,0.26),rgba(2,6,23,0.78))",
+      light: "",
+      dark: "",
     },
   },
 ];
@@ -133,9 +127,15 @@ export function getWallpaperOverlay(
 }
 
 export function getCustomWallpaperOverlay(resolvedTheme: ResolvedTheme) {
-  return resolvedTheme === "light"
-    ? "linear-gradient(180deg,rgba(255,255,255,0.08),rgba(226,232,240,0.22))"
-    : "linear-gradient(180deg,rgba(2,6,23,0.26),rgba(2,6,23,0.74))";
+  return "";
+}
+
+export function buildWallpaperBackgroundImage(overlay: string, image: string) {
+  if (!image) {
+    return overlay;
+  }
+
+  return overlay ? `${overlay}, url("${image}")` : `url("${image}")`;
 }
 
 export const initialWallpaper = {
