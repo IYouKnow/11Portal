@@ -27,7 +27,7 @@ export function Taskbar({
                 : app.available
                   ? "text-ink"
                   : "text-muted"
-            }`}
+            } ${app.available ? "cursor-default" : "cursor-not-allowed"}`}
             disabled={!app.available}
             onClick={app.available ? () => void onToggleApp(app.id) : undefined}
             title={

@@ -66,7 +66,9 @@ export function DesktopSurface({
                 : "hover:bg-white/10 focus-visible:bg-white/10"
               : "opacity-50"
           } select-none ${
-            draggingDesktopIcon === app.id ? "cursor-grabbing" : "cursor-grab"
+            draggingDesktopIcon === app.id
+              ? "cursor-grabbing"
+              : "cursor-default"
           }`}
           onClick={app.available ? () => void onDesktopIconClick(app.id) : undefined}
           onDoubleClick={

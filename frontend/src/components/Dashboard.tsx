@@ -90,6 +90,7 @@ export function Dashboard({
   const [desktopIconsLoaded, setDesktopIconsLoaded] = useState(false);
   const [desktopLaunchMode, setDesktopLaunchMode] =
     useState<DesktopLaunchMode>("double");
+  const [showDock, setShowDock] = useState(true);
   const [selectedDesktopApps, setSelectedDesktopApps] = useState<AppID[]>([]);
   const [desktopSelection, setDesktopSelection] =
     useState<DesktopSelectionState>(null);
@@ -114,6 +115,7 @@ export function Dashboard({
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
   const desktopIconsStorageKey = `portal.desktop-icons.${user.id}`;
   const desktopLaunchModeStorageKey = `portal.desktop-launch-mode.${user.id}`;
+  const showDockStorageKey = `portal.show-dock.${user.id}`;
   const minWindowSize = {
     width: 420,
     height: 280,
@@ -441,6 +443,20 @@ export function Dashboard({
   }, [desktopLaunchModeStorageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(showDockStorageKey);
+    if (raw === "false") {
+      setShowDock(false);
+      return;
+    }
+
+    setShowDock(true);
+  }, [showDockStorageKey]);
+
+  useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       const resizeState = resizeStateRef.current;
@@ -699,6 +715,14 @@ export function Dashboard({
 
     window.localStorage.setItem(desktopLaunchModeStorageKey, desktopLaunchMode);
   }, [desktopLaunchMode, desktopLaunchModeStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(showDockStorageKey, String(showDock));
+  }, [showDock, showDockStorageKey]);
 
   useEffect(() => {
     desktopIconsRef.current = desktopIcons;
@@ -1207,11 +1231,13 @@ export function Dashboard({
         onCreateUser={handleCreateUser}
         onCustomWallpaperUrlChange={setCustomWallpaperUrl}
         onDesktopLaunchModeChange={setDesktopLaunchMode}
+        onShowDockChange={setShowDock}
         onNewUserEmailChange={setNewUserEmail}
         onNewUserPasswordChange={setNewUserPassword}
         onNewUserRoleChange={setNewUserRole}
         onWallpaperUpload={handleWallpaperUpload}
         onWallpaperUrlSubmit={handleWallpaperUrlSubmit}
+        showDock={showDock}
         user={user}
         users={users}
         wallpaper={wallpaper}
@@ -1248,7 +1274,7 @@ export function Dashboard({
           user={user}
         />
 
-        <div className="relative flex flex-1 flex-col pb-24 pt-3">
+        <div className={`relative flex flex-1 flex-col pt-3 ${showDock ? "pb-24" : "pb-6"}`}>
           <DesktopSurface
             activeApp={activeApp}
             desktopAreaRef={desktopAreaRef}
@@ -1267,12 +1293,14 @@ export function Dashboard({
             selectedDesktopApps={selectedDesktopApps}
           />
 
-          <Taskbar
-            activeApp={activeApp}
-            isAppMinimized={isAppMinimized}
-            isAppOpen={isAppOpen}
-            onToggleApp={toggleApp}
-          />
+          {showDock ? (
+            <Taskbar
+              activeApp={activeApp}
+              isAppMinimized={isAppMinimized}
+              isAppOpen={isAppOpen}
+              onToggleApp={toggleApp}
+            />
+          ) : null}
         </div>
 
         {draggingApp && snapPreview ? (

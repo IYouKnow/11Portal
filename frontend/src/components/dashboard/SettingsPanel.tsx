@@ -16,11 +16,13 @@ type SettingsPanelProps = {
   onCreateUser: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onCustomWallpaperUrlChange: (value: string) => void;
   onDesktopLaunchModeChange: (mode: DesktopLaunchMode) => void;
+  onShowDockChange: (value: boolean) => void;
   onNewUserEmailChange: (value: string) => void;
   onNewUserPasswordChange: (value: string) => void;
   onNewUserRoleChange: (role: User["role"]) => void;
   onWallpaperUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onWallpaperUrlSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  showDock: boolean;
   user: User;
   users: User[];
   wallpaper: WallpaperState;
@@ -40,19 +42,21 @@ export function SettingsPanel({
   onCreateUser,
   onCustomWallpaperUrlChange,
   onDesktopLaunchModeChange,
+  onShowDockChange,
   onNewUserEmailChange,
   onNewUserPasswordChange,
   onNewUserRoleChange,
   onWallpaperUpload,
   onWallpaperUrlSubmit,
+  showDock,
   user,
   users,
   wallpaper,
   wallpaperError,
 }: SettingsPanelProps) {
   return (
-    <div className="grid h-[calc(100%-32px)] grid-cols-[220px_1fr] bg-[#06080d]">
-      <aside className="border-r border-white/10 bg-black/30 p-4">
+    <div className="grid h-[calc(100%-32px)] min-h-0 grid-cols-[220px_1fr] overflow-hidden bg-[#06080d]">
+      <aside className="settings-scrollbar overflow-y-auto border-r border-white/10 bg-black/30 p-4">
         <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
           Settings
         </p>
@@ -71,7 +75,7 @@ export function SettingsPanel({
         </div>
       </aside>
 
-      <div className="overflow-auto p-5">
+      <div className="settings-scrollbar min-h-0 overflow-y-auto p-5">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -211,6 +215,28 @@ export function SettingsPanel({
                 </p>
               </div>
             </label>
+          </div>
+
+          <div className="mt-6 border-t border-white/10 pt-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-medium text-ink">Dock</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Hide the bottom dock to keep the desktop clear.
+                </p>
+              </div>
+              <label className="flex cursor-pointer items-center gap-3 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-ink transition hover:border-white/20 hover:bg-white/5">
+                <span className="text-xs uppercase tracking-[0.22em] text-muted">
+                  {showDock ? "On" : "Off"}
+                </span>
+                <input
+                  checked={showDock}
+                  className="h-4 w-4 accent-sky-400"
+                  onChange={(event) => onShowDockChange(event.target.checked)}
+                  type="checkbox"
+                />
+              </label>
+            </div>
           </div>
         </section>
 
