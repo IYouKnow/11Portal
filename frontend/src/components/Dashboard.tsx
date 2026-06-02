@@ -1298,6 +1298,10 @@ export function Dashboard({
           style={{ background: "var(--app-top-glow)" }}
         />
       ) : null}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-56"
+        style={{ background: "var(--app-bottom-vignette)" }}
+      />
 
       <div className="relative flex min-h-screen flex-col">
         <DashboardHeader
