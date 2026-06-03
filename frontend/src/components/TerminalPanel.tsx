@@ -347,7 +347,7 @@ function createSessionRuntime(
   terminal.loadAddon(fitAddon);
   terminal.open(host);
   fitAddon.fit();
-  terminal.writeln("Portal terminal connecting...");
+  terminal.writeln("Nortem Portal terminal connecting...");
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(

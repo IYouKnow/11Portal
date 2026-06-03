@@ -34,7 +34,7 @@ func (h *SystemHandler) Overview(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"platform": fiber.Map{
-			"name":                    "Portal",
+			"name":                    "Nortem Portal",
 			"publicURL":               h.cfg.PublicURL,
 			"workspacesRoot":          h.cfg.WorkspacesRoot,
 			"runtime":                 runtime.GOOS + "/" + runtime.GOARCH,

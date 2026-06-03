@@ -1,12 +1,12 @@
-# Portal
+# Nortem Portal
 
-Portal is a self-hosted browser workspace platform with a React frontend, a Go/Fiber backend, SQLite persistence, browser terminals, embedded Chromium, and now native-feeling Remote Desktop sessions backed by Apache Guacamole.
+Nortem Portal is a self-hosted browser and terminal access platform for reaching a home network without a traditional always-on VPN. It combines a React frontend, a Go/Fiber backend, SQLite persistence, browser terminals, embedded Chromium, and native-feeling Remote Desktop sessions backed by Apache Guacamole.
 
 ## Stack
 
 - Frontend: React, Vite, Tailwind CSS
 - Backend: Go, Fiber, WebSockets
-- Portal database: SQLite
+- Nortem Portal database: SQLite
 - Remote desktop gateway: Apache Guacamole + guacd + PostgreSQL
 - Auth: bcrypt password hashing with signed-in session cookies
 - Deployment: Docker Compose
@@ -22,9 +22,9 @@ docker compose up --build
 ```
 
 4. Open `http://localhost:38480`.
-5. Log in with the Portal admin email and password from `.env`.
+5. Log in with the Nortem Portal admin email and password from `.env`.
 
-Portal remains the only public entrypoint. Guacamole, `guacd`, PostgreSQL, and Windows RDP targets stay private on the internal Docker network.
+Nortem Portal remains the only public entrypoint. Guacamole, `guacd`, PostgreSQL, and Windows RDP targets stay private on the internal Docker network.
 
 ## CasaOS
 
@@ -32,7 +32,7 @@ Use [`docker-compose.casaos.yml`](docker-compose.casaos.yml) for CasaOS custom i
 
 Do not import [`docker-compose.yml`](docker-compose.yml) directly into CasaOS. That file is the general Docker Compose stack for normal Docker users, while CasaOS rewrites imported Compose files and can drop or alter features like interpolation, relative bind paths, and startup commands.
 
-The CasaOS-specific file bakes in the workarounds Portal needs for CasaOS import:
+The CasaOS-specific file bakes in the workarounds Nortem Portal needs for CasaOS import:
 
 - absolute `/DATA/AppData/$AppID/...` storage paths
 - explicit environment defaults instead of Compose interpolation
@@ -75,9 +75,9 @@ docker compose up chromium
 
 ## Chromium Routing
 
-Portal separates Chromium's internal upstream from the browser-facing URL:
+Nortem Portal separates Chromium's internal upstream from the browser-facing URL:
 
-- `PORTAL_CHROMIUM_INTERNAL_URL`: where Portal reaches Chromium on the private network
+- `PORTAL_CHROMIUM_INTERNAL_URL`: where Nortem Portal reaches Chromium on the private network
 - `PORTAL_CHROMIUM_PUBLIC_URL`: the URL the frontend should open, usually `/chromium/`
 
 For same-origin deployments, keep:
@@ -88,27 +88,27 @@ PORTAL_CHROMIUM_PUBLIC_URL=/chromium/
 
 ## Remote Desktop Architecture
 
-Portal owns the user experience. Guacamole is used only as the internal HTML5 RDP client and gateway.
+Nortem Portal owns the user experience. Guacamole is used only as the internal HTML5 RDP client and gateway.
 
 Flow:
 
-1. User signs in to Portal.
+1. User signs in to Nortem Portal.
 2. User opens the `Remote Desktop` app.
 3. User selects or creates a Windows profile.
 4. User enters session credentials.
-5. Portal backend creates or updates the matching Guacamole RDP connection.
-6. Portal proxies Guacamole under `/guacamole/*` after Portal auth succeeds.
-7. The RDP session opens inside the Portal window.
+5. Nortem Portal backend creates or updates the matching Guacamole RDP connection.
+6. Nortem Portal proxies Guacamole under `/guacamole/*` after auth succeeds.
+7. The RDP session opens inside the Nortem Portal window.
 
 Important details:
 
-- Portal auth is required for all Remote Desktop API routes.
-- Portal auth is required before proxying `/guacamole/*`.
+- Nortem Portal auth is required for all Remote Desktop API routes.
+- Nortem Portal auth is required before proxying `/guacamole/*`.
 - Guacamole admin credentials are never exposed to the frontend.
 - `guacd` is not exposed publicly.
 - Windows RDP is not exposed publicly.
-- RDP passwords are not stored in Portal.
-- Portal stores the profile. Guacamole stores a connection that uses `${GUAC_PASSWORD}` so the session password entered at connect time is not written into the saved connection parameters.
+- RDP passwords are not stored in Nortem Portal.
+- Nortem Portal stores the profile. Guacamole stores a connection that uses `${GUAC_PASSWORD}` so the session password entered at connect time is not written into the saved connection parameters.
 
 ## Remote Desktop Configuration
 
@@ -119,7 +119,7 @@ PORTAL_GUACAMOLE_INTERNAL_URL=http://guacamole:8080/guacamole
 PORTAL_GUACAMOLE_DATA_SOURCE=postgresql
 ```
 
-By default, Portal reuses `PORTAL_ADMIN_EMAIL` and `PORTAL_ADMIN_PASSWORD` as the Guacamole admin credentials. You only need `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD` if you want Guacamole to use a different admin account.
+By default, Nortem Portal reuses `PORTAL_ADMIN_EMAIL` and `PORTAL_ADMIN_PASSWORD` as the Guacamole admin credentials. You only need `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD` if you want Guacamole to use a different admin account.
 
 The bundled `docker-compose.yml` adds:
 
@@ -131,7 +131,7 @@ The PostgreSQL schema is initialized from [`docker/guacamole/init/001-initdb.sql
 
 ## Remote Desktop Profile Shape
 
-Portal profiles now include:
+Nortem Portal profiles now include:
 
 - `name`
 - `host`
@@ -146,7 +146,7 @@ At connect time, the frontend sends:
 - `username`
 - `password`
 
-The backend responds with a Portal-local Guacamole launch URL that the frontend embeds in an iframe.
+The backend responds with a Nortem Portal-local Guacamole launch URL that the frontend embeds in an iframe.
 
 ## API Overview
 
@@ -169,4 +169,4 @@ The backend responds with a Portal-local Guacamole launch URL that the frontend 
 - The backend will bootstrap the configured Guacamole admin user from the default `guacadmin` account if needed on first startup.
 - By default, the configured Guacamole admin user is the same as `PORTAL_ADMIN_EMAIL` with the same password.
 - If you want Guacamole to use a different admin account, set `PORTAL_GUACAMOLE_ADMIN_USERNAME` and `PORTAL_GUACAMOLE_ADMIN_PASSWORD`.
-- The Portal database and the Guacamole database are separate on purpose.
+- The Nortem Portal database and the Guacamole database are separate on purpose.

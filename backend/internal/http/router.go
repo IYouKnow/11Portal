@@ -26,13 +26,13 @@ import (
 
 func New(cfg config.Config, dataStore *store.Store) *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName: "Portal API",
+		AppName: "Nortem Portal API",
 	})
 
 	if strings.HasPrefix(cfg.PublicURL, "http://") &&
 		!strings.HasPrefix(cfg.PublicURL, "http://localhost") &&
 		!strings.HasPrefix(cfg.PublicURL, "http://127.0.0.1") {
-		log.Printf("WARNING: Portal is configured with a non-HTTPS public URL (%s). Chromium/Selkies requires HTTPS or localhost for a secure browser context.", cfg.PublicURL)
+		log.Printf("WARNING: Nortem Portal is configured with a non-HTTPS public URL (%s). Chromium/Selkies requires HTTPS or localhost for a secure browser context.", cfg.PublicURL)
 	}
 
 	app.Use(cors.New(cors.Config{

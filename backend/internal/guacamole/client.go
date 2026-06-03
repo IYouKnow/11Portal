@@ -255,8 +255,8 @@ func (c *Client) createUser(ctx context.Context, session *Session, username, pas
 			"valid-until":              "",
 			"timezone":                 nil,
 			"guac-full-name":           "",
-			"guac-organization":        "Portal",
-			"guac-organizational-role": "Portal session",
+			"guac-organization":        "Nortem Portal",
+			"guac-organizational-role": "Nortem Portal session",
 		},
 	}
 

@@ -36,8 +36,8 @@ services:
       TZ: ${TZ-Etc/UTC}
       SUBFOLDER: /chromium/
       CUSTOM_WS_PORT: 8082
-      TITLE: Portal Chromium
-      SELKIES_UI_TITLE: Portal
+      TITLE: Nortem Portal Chromium
+      SELKIES_UI_TITLE: Nortem Portal
       SELKIES_UI_SHOW_LOGO: false|locked
       SELKIES_UI_SHOW_SIDEBAR: false|locked
       SELKIES_UI_SHOW_CORE_BUTTONS: false|locked

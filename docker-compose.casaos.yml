@@ -1,4 +1,4 @@
-name: portal
+name: nortem-portal
 services:
   portal:
     image: ghcr.io/iyouknow/portal:latest
@@ -36,14 +36,14 @@ services:
       ports:
         - container: "8080"
           description:
-            en_US: Portal web interface
+            en_US: Nortem Portal web interface
       volumes:
         - container: /app/data
           description:
-            en_US: Portal database and persistent data
+            en_US: Nortem Portal database and persistent data
         - container: /workspaces
           description:
-            en_US: Workspace files available inside Portal
+            en_US: Workspace files available inside Nortem Portal
 
   chromium:
     image: lscr.io/linuxserver/ungoogled-chromium:latest
@@ -54,8 +54,8 @@ services:
       PGID: $PGID
       TZ: $TZ
       SUBFOLDER: /chromium/
-      TITLE: Portal Chromium
-      SELKIES_UI_TITLE: Portal
+      TITLE: Nortem Portal Chromium
+      SELKIES_UI_TITLE: Nortem Portal
       SELKIES_UI_SHOW_LOGO: false|locked
       SELKIES_UI_SHOW_SIDEBAR: false|locked
       SELKIES_UI_SHOW_CORE_BUTTONS: false|locked
@@ -158,13 +158,13 @@ x-casaos:
   author: iyouknow
   category: Developer
   description:
-    en_US: Portal is a browser workspace with embedded Chromium, terminals, and remote desktop sessions.
+    en_US: Nortem Portal is a browser and terminal access gateway for a home network without a traditional always-on VPN.
   developer: iyouknow
   icon: https://icon.casaos.io/main/all/portal.png
   index: /
   port_map: "38480"
   scheme: http
   tagline:
-    en_US: Self-hosted browser workspace with Chromium and remote desktop.
+    en_US: Browser and terminal access into a home network without always-on VPN.
   title:
-    en_US: Portal
+    en_US: Nortem Portal

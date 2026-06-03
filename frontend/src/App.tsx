@@ -33,7 +33,7 @@ export default function App() {
             Restoring your session
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Checking your access and loading the portal.
+            Checking your access and loading Nortem Portal.
           </p>
         </section>
       </main>

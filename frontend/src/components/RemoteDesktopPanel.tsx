@@ -187,8 +187,8 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
           </p>
           <h2 className="mt-2 text-lg font-medium text-ink">Windows machines</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Save machine profiles here. Portal handles the Guacamole session behind the
-            scenes so users stay inside the native app.
+            Save machine profiles here. Nortem Portal handles the Guacamole session
+            behind the scenes so users stay inside the native app.
           </p>
         </div>
 
@@ -405,7 +405,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
                 </div>
               ) : (
                 <p className="text-sm leading-6 text-muted">
-                  Select a saved machine to start an RDP session inside Portal.
+                  Select a saved machine to start an RDP session inside Nortem Portal.
                 </p>
               )}
 
@@ -420,15 +420,15 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
               <iframe
                 className="h-full w-full border-0 bg-canvas"
                 src={sessionURL}
-                title="Portal Remote Desktop"
+                title="Nortem Portal Remote Desktop"
               />
             ) : (
               <div className="flex h-full items-center justify-center p-8">
                 <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
                   <h3 className="text-2xl font-medium text-ink">Remote Desktop ready</h3>
                   <p className="mt-3 text-sm leading-7 text-muted">
-                    Save a machine, enter credentials at connect time, and Portal will open
-                    the Guacamole-backed RDP session right here.
+                    Save a machine, enter credentials at connect time, and Nortem Portal
+                    will open the Guacamole-backed RDP session right here.
                   </p>
                 </div>
               </div>
@@ -439,7 +439,7 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
             <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
               <h3 className="text-2xl font-medium text-ink">Remote Desktop</h3>
               <p className="mt-3 text-sm leading-7 text-muted">
-                Configure Portal&apos;s internal Guacamole gateway to enable native RDP
+                Configure Nortem Portal&apos;s internal Guacamole gateway to enable native RDP
                 sessions in this app.
               </p>
               {gatewayURL ? (

@@ -1209,7 +1209,7 @@ export function Dashboard({
           }`}
           loading="lazy"
           src={chromiumSrc}
-          title="Portal Chromium"
+          title="Nortem Portal Chromium"
         />
       );
     }
