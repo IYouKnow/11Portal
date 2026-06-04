@@ -2,14 +2,26 @@ import {
   Link2,
   Settings,
 } from "lucide-react";
+import type { ResolvedTheme } from "../../theme-config";
 import type { AppID } from "./types";
 
-export function AppIcon({ appId }: { appId: AppID }) {
+export function AppIcon({
+  appId,
+  resolvedTheme,
+}: {
+  appId: AppID;
+  resolvedTheme: ResolvedTheme;
+}) {
+  const iconStyle = {
+    color: resolvedTheme === "light" ? "#000000" : "#ffffff",
+  } as const;
+
   if (appId === "chromium") {
     return (
       <svg
         aria-hidden="true"
         className="h-7 w-7"
+        style={iconStyle}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -29,6 +41,7 @@ export function AppIcon({ appId }: { appId: AppID }) {
       <svg
         aria-hidden="true"
         className="h-7 w-7"
+        style={iconStyle}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -48,6 +61,7 @@ export function AppIcon({ appId }: { appId: AppID }) {
       <svg
         aria-hidden="true"
         className="h-7 w-7"
+        style={iconStyle}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -68,6 +82,7 @@ export function AppIcon({ appId }: { appId: AppID }) {
       <svg
         aria-hidden="true"
         className="h-7 w-7"
+        style={iconStyle}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -91,6 +106,7 @@ export function AppIcon({ appId }: { appId: AppID }) {
       <svg
         aria-hidden="true"
         className="h-7 w-7"
+        style={iconStyle}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -109,11 +125,21 @@ export function AppIcon({ appId }: { appId: AppID }) {
 
   if (appId === "shortcutManager") {
     return (
-      <Link2 aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />
+      <Link2
+        aria-hidden="true"
+        className="h-7 w-7"
+        style={iconStyle}
+        strokeWidth={1.9}
+      />
     );
   }
 
   return (
-    <Settings aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />
+    <Settings
+      aria-hidden="true"
+      className="h-7 w-7"
+      style={iconStyle}
+      strokeWidth={1.9}
+    />
   );
 }

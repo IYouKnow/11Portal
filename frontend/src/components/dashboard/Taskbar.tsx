@@ -1,11 +1,13 @@
 import { AppIcon } from "./AppIcon";
 import { apps } from "./constants";
+import type { ResolvedTheme } from "../../theme-config";
 import type { AppID } from "./types";
 
 type TaskbarProps = {
   activeApp: AppID | null;
   isAppMinimized: (appId: AppID) => boolean;
   isAppOpen: (appId: AppID) => boolean;
+  resolvedTheme: ResolvedTheme;
   visible: boolean;
   onToggleApp: (appId: AppID) => void | Promise<void>;
 };
@@ -14,6 +16,7 @@ export function Taskbar({
   activeApp,
   isAppMinimized,
   isAppOpen,
+  resolvedTheme,
   visible,
   onToggleApp,
 }: TaskbarProps) {
@@ -79,13 +82,13 @@ export function Taskbar({
                         activeApp === app.id &&
                         isAppOpen(app.id) &&
                         !isAppMinimized(app.id)
-                          ? "border-slate-300 bg-white/92 text-ink shadow-[0_6px_18px_rgba(15,23,42,0.10)] dark:border-white/5 dark:bg-white/10 dark:text-white dark:shadow-[0_8px_20px_rgba(0,0,0,0.22)]"
+                          ? "border-slate-300 bg-white/92 text-black shadow-[0_6px_18px_rgba(15,23,42,0.10)] dark:border-white/5 dark:bg-white/10 dark:text-white dark:shadow-[0_8px_20px_rgba(0,0,0,0.22)]"
                           : isAppOpen(app.id)
-                            ? "border-slate-300/95 bg-white/78 text-ink shadow-[0_3px_10px_rgba(15,23,42,0.06)] dark:border-white/5 dark:bg-white/7 dark:text-white dark:shadow-none"
-                            : "border-slate-200/0 bg-transparent text-muted group-hover:border-slate-300/90 group-hover:bg-white/72 group-hover:text-ink group-hover:shadow-[0_3px_10px_rgba(15,23,42,0.05)] dark:text-white/70 dark:group-hover:border-white/4 dark:group-hover:bg-white/6 dark:group-hover:text-white dark:group-hover:shadow-none"
+                            ? "border-slate-300/95 bg-white/78 text-black shadow-[0_3px_10px_rgba(15,23,42,0.06)] dark:border-white/5 dark:bg-white/7 dark:text-white dark:shadow-none"
+                            : "border-slate-200/0 bg-transparent text-black group-hover:border-slate-300/90 group-hover:bg-white/72 group-hover:text-black group-hover:shadow-[0_3px_10px_rgba(15,23,42,0.05)] dark:text-white/70 dark:group-hover:border-white/4 dark:group-hover:bg-white/6 dark:group-hover:text-white dark:group-hover:shadow-none"
                       }`}
                     >
-                      <AppIcon appId={app.id} />
+                      <AppIcon appId={app.id} resolvedTheme={resolvedTheme} />
                     </span>
                     {isAppOpen(app.id) ? (
                       <span
@@ -141,13 +144,13 @@ export function Taskbar({
                 <span
                   className={`relative flex h-11 w-11 items-center justify-center rounded-lg border transition duration-150 ${
                     appIsActive
-                      ? "border-slate-300 bg-white/92 text-ink shadow-[0_6px_18px_rgba(15,23,42,0.10)] dark:border-white/5 dark:bg-white/10 dark:text-white dark:shadow-[0_8px_20px_rgba(0,0,0,0.22)]"
+                      ? "border-slate-300 bg-white/92 text-black shadow-[0_6px_18px_rgba(15,23,42,0.10)] dark:border-white/5 dark:bg-white/10 dark:text-white dark:shadow-[0_8px_20px_rgba(0,0,0,0.22)]"
                       : appIsOpen
-                        ? "border-slate-300/95 bg-white/78 text-ink shadow-[0_3px_10px_rgba(15,23,42,0.06)] dark:border-white/5 dark:bg-white/7 dark:text-white dark:shadow-none"
-                        : "border-slate-200/0 bg-transparent text-muted group-hover:border-slate-300/90 group-hover:bg-white/72 group-hover:text-ink group-hover:shadow-[0_3px_10px_rgba(15,23,42,0.05)] dark:text-white/70 dark:group-hover:border-white/4 dark:group-hover:bg-white/6 dark:group-hover:text-white dark:group-hover:shadow-none"
+                        ? "border-slate-300/95 bg-white/78 text-black shadow-[0_3px_10px_rgba(15,23,42,0.06)] dark:border-white/5 dark:bg-white/7 dark:text-white dark:shadow-none"
+                        : "border-slate-200/0 bg-transparent text-black group-hover:border-slate-300/90 group-hover:bg-white/72 group-hover:text-black group-hover:shadow-[0_3px_10px_rgba(15,23,42,0.05)] dark:text-white/70 dark:group-hover:border-white/4 dark:group-hover:bg-white/6 dark:group-hover:text-white dark:group-hover:shadow-none"
                   }`}
                 >
-                  <AppIcon appId={app.id} />
+                  <AppIcon appId={app.id} resolvedTheme={resolvedTheme} />
                 </span>
                 {appIsOpen ? (
                   <span

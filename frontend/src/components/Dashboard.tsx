@@ -1800,6 +1800,7 @@ export function Dashboard({
             desktopLaunchMode={desktopLaunchMode}
             desktopSelection={desktopSelection}
             draggingDesktopIcon={draggingDesktopIcon}
+            resolvedTheme={resolvedTheme}
             shortcuts={shortcuts}
             useLightLabels={!showDesktopGrid}
             onDesktopIconClick={handleDesktopIconClick}
@@ -1857,6 +1858,7 @@ export function Dashboard({
             activeApp={activeApp}
             isAppMinimized={isAppMinimized}
             isAppOpen={isAppOpen}
+            resolvedTheme={resolvedTheme}
             onToggleApp={toggleApp}
             visible={isDockVisible}
           />

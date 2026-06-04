@@ -3,6 +3,7 @@ import { Link2 } from "lucide-react";
 import { AppIcon } from "./AppIcon";
 import { apps } from "./constants";
 import { getSelectionBounds } from "./desktopUtils";
+import type { ResolvedTheme } from "../../theme-config";
 import type {
   DesktopLaunchMode,
   DesktopSelectionState,
@@ -16,6 +17,7 @@ type DesktopSurfaceProps = {
   desktopLaunchMode: DesktopLaunchMode;
   desktopSelection: DesktopSelectionState;
   draggingDesktopIcon: string | null;
+  resolvedTheme: ResolvedTheme;
   useLightLabels: boolean;
   shortcuts: ShortcutDefinition[];
   onDesktopPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -47,6 +49,7 @@ export function DesktopSurface({
   desktopLaunchMode,
   desktopSelection,
   draggingDesktopIcon,
+  resolvedTheme,
   useLightLabels,
   shortcuts,
   onDesktopPointerDown,
@@ -104,13 +107,13 @@ export function DesktopSurface({
           type="button"
         >
           <div
-            className={`flex h-16 w-16 items-center justify-center rounded-2xl border text-ink backdrop-blur-sm transition dark:text-white ${
+            className={`flex h-16 w-16 items-center justify-center rounded-2xl border text-black backdrop-blur-sm transition dark:text-white ${
               selectedDesktopItems.includes(app.id)
                 ? "border-line-strong/40 bg-surface/70"
                 : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
             }`}
           >
-            <AppIcon appId={app.id} />
+            <AppIcon appId={app.id} resolvedTheme={resolvedTheme} />
           </div>
           <span
             className={`desktop-icon-label max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 ${
@@ -150,7 +153,7 @@ export function DesktopSurface({
           type="button"
         >
           <div
-            className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border text-ink backdrop-blur-sm transition dark:text-white ${
+            className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border text-black backdrop-blur-sm transition dark:text-white ${
               selectedDesktopItems.includes(shortcut.id)
                 ? "border-line-strong/40 bg-surface/70"
                 : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
