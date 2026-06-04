@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent, Ref } from "react";
-import { Link2 } from "lucide-react";
+import { Link2, TerminalSquare } from "lucide-react";
 import { AppIcon } from "./AppIcon";
 import { apps } from "./constants";
 import { getSelectionBounds } from "./desktopUtils";
@@ -159,7 +159,11 @@ export function DesktopSurface({
                 : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
             }`}
           >
-            <ShortcutDesktopIcon iconUrl={shortcut.iconUrl} />
+            <ShortcutDesktopIcon
+              iconUrl={shortcut.iconUrl}
+              kind={shortcut.kind}
+              resolvedTheme={resolvedTheme}
+            />
           </div>
           <span
             className={`desktop-icon-label max-w-full px-1.5 py-0.5 text-sm font-medium leading-5 ${
@@ -181,10 +185,26 @@ export function DesktopSurface({
   );
 }
 
-function ShortcutDesktopIcon({ iconUrl }: { iconUrl: string }) {
+function ShortcutDesktopIcon({
+  iconUrl,
+  kind,
+  resolvedTheme,
+}: {
+  iconUrl: string;
+  kind: ShortcutDefinition["kind"];
+  resolvedTheme: ResolvedTheme;
+}) {
   const [failed, setFailed] = useState(false);
 
   if (!iconUrl || failed) {
+    if (kind === "terminal") {
+      return <TerminalSquare aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />;
+    }
+
+    if (kind === "remoteDesktop") {
+      return <AppIcon appId="remoteDesktop" resolvedTheme={resolvedTheme} />;
+    }
+
     return <Link2 aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />;
   }
 

@@ -43,13 +43,30 @@ export type ShortcutIconName =
   | "image"
   | "play";
 
+export type ShortcutKind =
+  | "browser"
+  | "terminal"
+  | "remoteDesktop";
+
+export type RemoteDesktopShortcutConfig = {
+  profileId?: number;
+  profileName?: string;
+  host?: string;
+  port?: number;
+  domain?: string;
+  ignoreCert?: boolean;
+  sessionUsername: string;
+  password: string;
+};
+
 export type ShortcutDefinition = {
   id: string;
   name: string;
   label: string;
   url: string;
   iconUrl: string;
-  kind: "browser" | "terminal";
+  kind: ShortcutKind;
+  remoteDesktop?: RemoteDesktopShortcutConfig;
   createdAt: string;
 };
 

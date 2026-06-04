@@ -10,6 +10,8 @@ import {
 } from "react";
 import {
   closeBrowserRuntime,
+  createRemoteDesktopProfile,
+  deleteRemoteDesktopProfile,
   closeTerminalSession,
   listTerminalSessions,
 } from "../lib/api";
@@ -54,6 +56,7 @@ import type {
   DragState,
   IconDragState,
   IconPositionMap,
+  RemoteDesktopShortcutConfig,
   ResizeDirection,
   ResizeState,
   ShortcutDefinition,
@@ -120,6 +123,12 @@ export function Dashboard({
   const [pendingTerminalLaunch, setPendingTerminalLaunch] = useState<{
     id: number;
     command: string;
+  } | null>(null);
+  const [pendingRemoteDesktopLaunch, setPendingRemoteDesktopLaunch] = useState<{
+    id: number;
+    profileId: number;
+    username: string;
+    password: string;
   } | null>(null);
   const [editingShortcutId, setEditingShortcutId] = useState<string | null>(null);
   const [shortcutContextMenu, setShortcutContextMenu] = useState<{
@@ -310,6 +319,59 @@ export function Dashboard({
 
   const normalizeShortcutCommand = (rawCommand: string) => rawCommand.trim();
 
+  const normalizeRemoteDesktopShortcut = (
+    rawValue: unknown,
+    fallbackProfileName: string,
+  ): RemoteDesktopShortcutConfig | null => {
+    if (typeof rawValue !== "object" || rawValue === null) {
+      return null;
+    }
+
+    const candidate = rawValue as Record<string, unknown>;
+    const sessionUsername =
+      typeof candidate.sessionUsername === "string"
+        ? candidate.sessionUsername.trim()
+        : typeof candidate.username === "string"
+          ? candidate.username.trim()
+          : "";
+    const password =
+      typeof candidate.password === "string" ? candidate.password : "";
+
+    if (!sessionUsername || !password) {
+      return null;
+    }
+
+    const profileId =
+      typeof candidate.profileId === "number" && Number.isFinite(candidate.profileId)
+        ? candidate.profileId
+        : undefined;
+    const profileName =
+      typeof candidate.profileName === "string" && candidate.profileName.trim()
+        ? candidate.profileName.trim()
+        : fallbackProfileName;
+    const host =
+      typeof candidate.host === "string" ? candidate.host.trim() : "";
+    const port =
+      typeof candidate.port === "number" && Number.isFinite(candidate.port)
+        ? candidate.port
+        : 3389;
+    const domain =
+      typeof candidate.domain === "string" ? candidate.domain.trim() : "";
+    const ignoreCert =
+      typeof candidate.ignoreCert === "boolean" ? candidate.ignoreCert : true;
+
+    return {
+      profileId,
+      profileName,
+      host,
+      port,
+      domain,
+      ignoreCert,
+      sessionUsername,
+      password,
+    };
+  };
+
   const openShortcut = async (shortcutId: string) => {
     const shortcut = shortcutById.get(shortcutId);
     if (!shortcut) {
@@ -327,6 +389,68 @@ export function Dashboard({
         command,
       });
       ensureAppVisible("terminal");
+      return;
+    }
+
+    if (shortcut.kind === "remoteDesktop") {
+      const remoteDesktop = shortcut.remoteDesktop;
+      if (!remoteDesktop) {
+        return;
+      }
+
+      let profileId = remoteDesktop.profileId;
+      if (!profileId) {
+        const profileName =
+          remoteDesktop.profileName?.trim() ||
+          shortcut.name.trim() ||
+          "Remote Desktop";
+        const host = remoteDesktop.host?.trim() || "";
+        const sessionUsername = remoteDesktop.sessionUsername.trim();
+        const password = remoteDesktop.password;
+
+        if (!host || !sessionUsername || !password) {
+          return;
+        }
+
+        const { item } = await createRemoteDesktopProfile({
+          name: profileName,
+          host,
+          port: remoteDesktop.port ?? 3389,
+          domain: remoteDesktop.domain?.trim() ?? "",
+          username: remoteDesktop.sessionUsername.trim(),
+          ignoreCert: remoteDesktop.ignoreCert ?? true,
+        });
+
+        profileId = item.id;
+        setShortcuts((current) =>
+          current.map((item) =>
+            item.id === shortcutId
+              ? {
+                  ...item,
+                  remoteDesktop: {
+                    ...remoteDesktop,
+                    profileId,
+                    profileName,
+                    host,
+                    port: remoteDesktop.port ?? 3389,
+                    domain: remoteDesktop.domain?.trim() ?? "",
+                    ignoreCert: remoteDesktop.ignoreCert ?? true,
+                    sessionUsername,
+                    password,
+                  },
+                }
+              : item,
+          ),
+        );
+      }
+
+      setPendingRemoteDesktopLaunch({
+        id: Date.now(),
+        profileId,
+        username: remoteDesktop.sessionUsername.trim(),
+        password: remoteDesktop.password,
+      });
+      ensureAppVisible("remoteDesktop");
       return;
     }
 
@@ -703,9 +827,28 @@ export function Dashboard({
             return null;
           }
 
+          const kind =
+            shortcut.kind === "terminal" || shortcut.kind === "remoteDesktop"
+              ? shortcut.kind
+              : "browser";
+
+          const remoteDesktop =
+            kind === "remoteDesktop"
+              ? normalizeRemoteDesktopShortcut(
+                  shortcut.remoteDesktop,
+                  typeof shortcut.name === "string" && shortcut.name.trim()
+                    ? shortcut.name.trim()
+                    : shortcut.label,
+                )
+              : undefined;
+
+          if (kind === "remoteDesktop" && !remoteDesktop) {
+            return null;
+          }
+
           return {
             ...shortcut,
-            kind: shortcut.kind === "terminal" ? "terminal" : "browser",
+            kind,
             name:
               typeof shortcut.name === "string" && shortcut.name.trim()
                 ? shortcut.name
@@ -714,6 +857,7 @@ export function Dashboard({
               typeof shortcut.iconUrl === "string"
                 ? normalizeIconUrl(shortcut.iconUrl)
                 : "",
+            remoteDesktop,
           } as ShortcutDefinition;
         })
         .filter((shortcut): shortcut is ShortcutDefinition => shortcut !== null);
@@ -1458,25 +1602,77 @@ export function Dashboard({
     }
   };
 
-  const handleCreateShortcut = (payload: {
+  const handleCreateShortcut = async (payload: {
     shortcutId: string | null;
     name: string;
-    kind: "browser" | "terminal";
+    kind: "browser" | "terminal" | "remoteDesktop";
     url: string;
     iconUrl: string;
+    remoteDesktop?: RemoteDesktopShortcutConfig;
   }) => {
-    const shortcutValue =
-      payload.kind === "terminal"
-        ? normalizeShortcutCommand(payload.url)
-        : normalizeShortcutUrl(payload.url);
-    if (!shortcutValue) {
+    let shortcutValue = "";
+    if (payload.kind === "terminal") {
+      shortcutValue = normalizeShortcutCommand(payload.url);
+      if (!shortcutValue) {
+        return;
+      }
+    } else if (payload.kind === "browser") {
+      shortcutValue = normalizeShortcutUrl(payload.url);
+      if (!shortcutValue) {
+        return;
+      }
+    } else if (!payload.remoteDesktop) {
       return;
     }
 
     const normalizedIconUrl = normalizeIconUrl(payload.iconUrl);
     const trimmedName = payload.name.trim();
+    let remoteDesktop = payload.remoteDesktop;
+    if (payload.kind === "remoteDesktop" && remoteDesktop) {
+      const profileName = remoteDesktop.profileName?.trim() ?? "";
+      const host = remoteDesktop.host?.trim() ?? "";
+      const domain = remoteDesktop.domain?.trim() ?? "";
+      const sessionUsername = remoteDesktop.sessionUsername.trim();
+
+      if (!profileName) {
+        throw new Error("Enter a profile name.");
+      }
+      if (!host) {
+        throw new Error("Enter a host or IP address.");
+      }
+      if (!sessionUsername) {
+        throw new Error("Enter the session username.");
+      }
+      if (!remoteDesktop.password) {
+        throw new Error("Enter the session password.");
+      }
+
+      const { item } = await createRemoteDesktopProfile({
+        name: profileName,
+        host,
+        port: remoteDesktop.port || 3389,
+        domain,
+        username: sessionUsername,
+        ignoreCert: remoteDesktop.ignoreCert ?? true,
+      });
+
+      remoteDesktop = {
+        profileId: item.id,
+        profileName,
+        host,
+        port: remoteDesktop.port || 3389,
+        domain,
+        ignoreCert: remoteDesktop.ignoreCert ?? true,
+        sessionUsername,
+        password: remoteDesktop.password,
+      };
+    }
 
     if (payload.shortcutId) {
+      const currentShortcut = shortcuts.find(
+        (shortcut) => shortcut.id === payload.shortcutId,
+      );
+
       setShortcuts((current) =>
         current.map((shortcut) =>
           shortcut.id === payload.shortcutId
@@ -1487,12 +1683,22 @@ export function Dashboard({
                 url: shortcutValue,
                 iconUrl: normalizedIconUrl,
                 kind: payload.kind,
+                remoteDesktop,
               }
             : shortcut,
         ),
       );
       setEditingShortcutId(null);
       setShortcutContextMenu(null);
+
+      const previousProfileId = currentShortcut?.remoteDesktop?.profileId;
+      if (
+        payload.kind === "remoteDesktop" &&
+        previousProfileId &&
+        previousProfileId !== remoteDesktop?.profileId
+      ) {
+        void deleteRemoteDesktopProfile(previousProfileId).catch(() => {});
+      }
       return;
     }
 
@@ -1503,6 +1709,7 @@ export function Dashboard({
       url: shortcutValue,
       iconUrl: normalizedIconUrl,
       kind: payload.kind,
+      remoteDesktop,
       createdAt: new Date().toISOString(),
     };
 
@@ -1712,6 +1919,8 @@ export function Dashboard({
         <RemoteDesktopPanel
           enabled={overview.platform.remoteDesktopEnabled}
           gatewayURL={remoteDesktopGatewayURL}
+          launchRequest={pendingRemoteDesktopLaunch}
+          onLaunchHandled={() => setPendingRemoteDesktopLaunch(null)}
         />
       );
     }

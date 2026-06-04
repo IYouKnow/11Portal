@@ -1,150 +1,134 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   createRemoteDesktopProfile,
-  deleteRemoteDesktopProfile,
   launchRemoteDesktopSession,
-  listRemoteDesktopProfiles,
-  type RemoteDesktopProfile,
 } from "../lib/api";
 
 type RemoteDesktopPanelProps = {
   enabled: boolean;
   gatewayURL: string;
+  launchRequest?: {
+    id: number;
+    profileId: number;
+    username: string;
+    password: string;
+  } | null;
+  onLaunchHandled?: () => void;
 };
 
-export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelProps) {
-  const [profiles, setProfiles] = useState<RemoteDesktopProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
-  const [sessionURL, setSessionURL] = useState("");
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
-  const [savingProfile, setSavingProfile] = useState(false);
+type RemoteDesktopTab = {
+  id: string;
+  profileId: number;
+  profileName: string;
+  sessionUsername: string;
+  url: string;
+};
+
+function createTabId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `remote-tab-${crypto.randomUUID()}`;
+  }
+
+  return `remote-tab-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function RemoteDesktopPanel({
+  enabled,
+  gatewayURL,
+  launchRequest = null,
+  onLaunchHandled,
+}: RemoteDesktopPanelProps) {
+  const [tabs, setTabs] = useState<RemoteDesktopTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [launchingSession, setLaunchingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("3389");
   const [domain, setDomain] = useState("");
-  const [profileUsername, setProfileUsername] = useState("");
   const [ignoreCert, setIgnoreCert] = useState(true);
   const [sessionUsername, setSessionUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const handledLaunchRequestId = useRef<number | null>(null);
 
-  const selectedProfile =
-    profiles.find((profile) => profile.id === selectedProfileId) ?? null;
-
-  useEffect(() => {
-    setSessionURL("");
-    setPassword("");
-    setSessionUsername(selectedProfile?.username ?? "");
-  }, [selectedProfileId, selectedProfile?.username]);
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null,
+    [activeTabId, tabs],
+  );
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadProfiles = async () => {
-      setLoadingProfiles(true);
-      try {
-        const { items } = await listRemoteDesktopProfiles();
-        if (cancelled) {
-          return;
-        }
-
-        setProfiles(items);
-        setSelectedProfileId((current) => current ?? items[0]?.id ?? null);
-        setError(null);
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Failed to load remote desktop profiles",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingProfiles(false);
-        }
+    if (tabs.length === 0) {
+      if (activeTabId !== null) {
+        setActiveTabId(null);
       }
-    };
-
-    if (enabled) {
-      void loadProfiles();
-    } else {
-      setLoadingProfiles(false);
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled]);
-
-  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSavingProfile(true);
-    setError(null);
-
-    try {
-      const { item } = await createRemoteDesktopProfile({
-        name,
-        host,
-        port: Number.parseInt(port, 10) || 3389,
-        domain,
-        username: profileUsername,
-        ignoreCert,
-      });
-
-      setProfiles((current) =>
-        [...current, item].sort((left, right) => left.name.localeCompare(right.name)),
-      );
-      setSelectedProfileId(item.id);
-      setName("");
-      setHost("");
-      setPort("3389");
-      setDomain("");
-      setProfileUsername("");
-      setIgnoreCert(true);
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Failed to save remote desktop profile",
-      );
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  const handleDeleteProfile = async (profileId: number) => {
-    setError(null);
-
-    try {
-      await deleteRemoteDesktopProfile(profileId);
-      setProfiles((current) => {
-        const nextProfiles = current.filter((profile) => profile.id !== profileId);
-        setSelectedProfileId((currentSelected) => {
-          if (currentSelected !== profileId) {
-            return currentSelected;
-          }
-
-          return nextProfiles[0]?.id ?? null;
-        });
-        return nextProfiles;
-      });
-    } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete remote desktop profile",
-      );
-    }
-  };
-
-  const handleConnect = async () => {
-    if (!selectedProfile) {
-      setError("Choose a saved machine first.");
       return;
     }
 
+    if (!activeTabId || !tabs.some((tab) => tab.id === activeTabId)) {
+      setActiveTabId(tabs[tabs.length - 1]?.id ?? null);
+    }
+  }, [activeTabId, tabs]);
+
+  useEffect(() => {
+    if (!enabled || !launchRequest) {
+      return;
+    }
+
+    if (handledLaunchRequestId.current === launchRequest.id || launchingSession) {
+      return;
+    }
+
+    handledLaunchRequestId.current = launchRequest.id;
+
+    const launchSession = async () => {
+      setLaunchingSession(true);
+      setError(null);
+
+      try {
+        const { url } = await launchRemoteDesktopSession(
+          launchRequest.profileId,
+          launchRequest.username.trim(),
+          launchRequest.password,
+        );
+
+        const tabId = createTabId();
+        setTabs((current) => [
+          ...current,
+          {
+            id: tabId,
+            profileId: launchRequest.profileId,
+            profileName: `Profile ${launchRequest.profileId}`,
+            sessionUsername: launchRequest.username.trim(),
+            url,
+          },
+        ]);
+        setActiveTabId(tabId);
+      } catch (launchError) {
+        setError(
+          launchError instanceof Error
+            ? launchError.message
+            : "Failed to open remote desktop session",
+        );
+      } finally {
+        setLaunchingSession(false);
+        onLaunchHandled?.();
+      }
+    };
+
+    void launchSession();
+  }, [enabled, launchRequest, launchingSession, onLaunchHandled]);
+
+  const handleConnect = async () => {
+    const trimmedHost = host.trim();
+    const trimmedSessionUsername = sessionUsername.trim();
+    const trimmedDomain = domain.trim();
+    const profileName = trimmedHost || "Remote Desktop";
+
+    if (!trimmedHost) {
+      setError("Enter a host or IP address.");
+      return;
+    }
     if (!sessionUsername.trim()) {
       setError("Enter a username for this session.");
       return;
@@ -159,12 +143,34 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
     setError(null);
 
     try {
+      const { item } = await createRemoteDesktopProfile({
+        name: profileName,
+        host: trimmedHost,
+        port: Number.parseInt(port, 10) || 3389,
+        domain: trimmedDomain,
+        username: trimmedSessionUsername,
+        ignoreCert,
+      });
+
       const { url } = await launchRemoteDesktopSession(
-        selectedProfile.id,
-        sessionUsername.trim(),
+        item.id,
+        trimmedSessionUsername,
         password,
       );
-      setSessionURL(url);
+
+      const tabId = createTabId();
+      setTabs((current) => [
+        ...current,
+        {
+          id: tabId,
+          profileId: item.id,
+          profileName,
+          sessionUsername: trimmedSessionUsername,
+          url,
+        },
+      ]);
+      setActiveTabId(tabId);
+      setPassword("");
     } catch (launchError) {
       setError(
         launchError instanceof Error
@@ -176,278 +182,265 @@ export function RemoteDesktopPanel({ enabled, gatewayURL }: RemoteDesktopPanelPr
     }
   };
 
-  const canEmbed = enabled && sessionURL.trim() !== "";
+  const handleCloseTab = (tabId: string) => {
+    setTabs((current) => {
+      const closingIndex = current.findIndex((tab) => tab.id === tabId);
+      const nextTabs = current.filter((tab) => tab.id !== tabId);
+
+      if (activeTabId === tabId) {
+        const fallback =
+          nextTabs[closingIndex] ?? nextTabs[closingIndex - 1] ?? nextTabs[0] ?? null;
+        setActiveTabId(fallback?.id ?? null);
+      }
+
+      return nextTabs;
+    });
+  };
+
+  const canOpenFullPage = enabled && activeTab !== null;
 
   return (
-    <div className="grid h-full grid-cols-[320px_1fr] bg-panel">
-      <aside className="flex flex-col border-r border-line bg-panel/95">
-        <div className="border-b border-line px-5 py-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
-            Remote Desktop
-          </p>
-          <h2 className="mt-2 text-lg font-medium text-ink">Windows machines</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Save machine profiles here. Nortem Portal handles the Guacamole session
-            behind the scenes so users stay inside the native app.
-          </p>
-        </div>
-
-        <form className="space-y-3 border-b border-line px-5 py-4" onSubmit={handleSaveProfile}>
-          <label className="block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-              Profile name
-            </span>
-            <input
-              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Production Windows Server"
-              value={name}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-              Host
-            </span>
-            <input
-              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-              onChange={(event) => setHost(event.target.value)}
-              placeholder="10.0.0.25"
-              value={host}
-            />
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-                Port
-              </span>
-              <input
-                className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                onChange={(event) => setPort(event.target.value)}
-                placeholder="3389"
-                value={port}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-                Domain
-              </span>
-              <input
-                className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                onChange={(event) => setDomain(event.target.value)}
-                placeholder="CONTOSO"
-                value={domain}
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted">
-              Default username
-            </span>
-            <input
-              className="w-full rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-              onChange={(event) => setProfileUsername(event.target.value)}
-              placeholder="Administrator"
-              value={profileUsername}
-            />
-          </label>
-
-          <label className="flex items-center gap-3 rounded-2xl border border-line bg-panel/70 px-4 py-3 text-sm text-ink">
-            <input
-              checked={ignoreCert}
-              className="h-4 w-4 accent-accent"
-              onChange={(event) => setIgnoreCert(event.target.checked)}
-              type="checkbox"
-            />
-            Ignore invalid RDP certificates
-          </label>
-
-          <button
-            className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={savingProfile || !enabled}
-            type="submit"
-          >
-            {savingProfile ? "Saving..." : "Save machine"}
-          </button>
-        </form>
-
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Profiles</p>
-            <span className="rounded-full border border-line bg-surface/80 px-2.5 py-1 text-[11px] text-muted">
-              {profiles.length}
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {loadingProfiles ? (
-              <div className="rounded-2xl border border-dashed border-line bg-surface/70 p-4 text-sm text-muted">
-                Loading saved machines...
-              </div>
-            ) : profiles.length > 0 ? (
-              profiles.map((profile) => {
-                const isSelected = profile.id === selectedProfileId;
-
-                return (
-                  <div
-                    key={profile.id}
-                    className={`block w-full rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-accent/40 bg-accent/10"
-                        : "border-line bg-surface/80 hover:bg-surface"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <button
-                        className="flex-1 text-left"
-                        onClick={() => setSelectedProfileId(profile.id)}
-                        type="button"
-                      >
-                        <p className="text-sm font-medium text-ink">{profile.name}</p>
-                        <p className="mt-1 text-xs text-muted">
-                          {profile.host}:{profile.port}
-                        </p>
-                        <p className="mt-1 text-xs text-muted">
-                          {profile.domain ? `${profile.domain}\\` : ""}
-                          {profile.username || "Ask for username at connect"}
-                        </p>
-                      </button>
-                      <button
-                        className="rounded-xl border border-line bg-panel/70 px-3 py-2 text-xs text-muted transition hover:text-ink"
-                        onClick={() => void handleDeleteProfile(profile.id)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-2xl border border-dashed border-line bg-surface/70 p-4 text-sm leading-6 text-muted">
-                No saved machines yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      <div className="flex min-h-0 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-line bg-window-chrome/80 px-5 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Gateway</p>
-            <h2 className="mt-1 text-lg font-medium text-ink">
-              {selectedProfile ? selectedProfile.name : "Choose a machine"}
-            </h2>
-          </div>
-
-          {canEmbed ? (
-            <a
-              className="rounded-2xl border border-line bg-surface/80 px-4 py-2 text-sm text-ink transition hover:bg-surface"
-              href={sessionURL}
-              rel="noreferrer"
-              target="_blank"
+    <div className="flex h-full min-h-0 flex-col bg-panel">
+      <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)]">
+        <aside
+          className={`flex min-h-0 flex-col border-b border-line bg-panel/95 transition-[width] duration-200 xl:border-b-0 xl:border-r ${
+            sidebarCollapsed ? "xl:w-[56px]" : "xl:w-[260px]"
+          }`}
+        >
+          <div className="flex items-center justify-end border-b border-line px-3 py-2.5">
+            <button
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface/80 text-muted transition hover:bg-surface hover:text-ink"
+              onClick={() => setSidebarCollapsed((current) => !current)}
+              type="button"
+              aria-label={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+              title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             >
-              Open full page
-            </a>
-          ) : null}
-        </div>
+              {sidebarCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+          </div>
 
-        {enabled ? (
-          <>
-            <div className="border-b border-line bg-panel/85 px-5 py-4">
-              {selectedProfile ? (
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-ink">
-                      {selectedProfile.host}:{selectedProfile.port}
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      Domain: {selectedProfile.domain || "None"}
-                    </p>
+          {sidebarCollapsed ? (
+            <div className="flex flex-1 items-start justify-center p-2 pt-3 xl:items-center">
+              <button
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-line bg-surface/80 text-muted transition hover:bg-surface hover:text-ink"
+                onClick={() => setSidebarCollapsed(false)}
+                type="button"
+                aria-label="Open sidebar"
+                title="Open sidebar"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <form
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-3.5 py-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleConnect();
+              }}
+            >
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="mb-1 block text-[10px] uppercase tracking-[0.22em] text-muted">
+                    Host
+                  </span>
+                  <input
+                    className="h-9 w-full rounded-xl border border-line bg-surface-soft px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent/60"
+                    onChange={(event) => setHost(event.target.value)}
+                    placeholder="192.168.0.10"
+                    value={host}
+                  />
+                </label>
+
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] uppercase tracking-[0.22em] text-muted">
+                      Port
+                    </span>
+                    <input
+                      className="h-9 w-full rounded-xl border border-line bg-surface-soft px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent/60"
+                      onChange={(event) => setPort(event.target.value)}
+                      placeholder="3389"
+                      value={port}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] uppercase tracking-[0.22em] text-muted">
+                      Domain
+                    </span>
+                    <input
+                      className="h-9 w-full rounded-xl border border-line bg-surface-soft px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent/60"
+                      onChange={(event) => setDomain(event.target.value)}
+                      placeholder="Nortem"
+                      value={domain}
+                    />
+                  </label>
+                </div>
+
+                <label className="flex items-center gap-3 rounded-xl border border-line bg-panel/70 px-3 py-2 text-sm text-ink">
+                  <input
+                    checked={ignoreCert}
+                    className="h-4 w-4 accent-accent"
+                    onChange={(event) => setIgnoreCert(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Ignore invalid RDP certificates
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[10px] uppercase tracking-[0.22em] text-muted">
+                    Session username
+                  </span>
+                  <input
+                    className="h-9 w-full rounded-xl border border-line bg-surface-soft px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent/60"
+                    onChange={(event) => setSessionUsername(event.target.value)}
+                    placeholder="Administrator"
+                    value={sessionUsername}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[10px] uppercase tracking-[0.22em] text-muted">
+                    Session password
+                  </span>
+                  <input
+                    className="h-9 w-full rounded-xl border border-line bg-surface-soft px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent/60"
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Password"
+                    type="password"
+                    value={password}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-auto space-y-2">
+                <button
+                  className="h-9 w-full rounded-xl border border-accent/30 bg-accent/10 px-4 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={launchingSession || !enabled}
+                  type="submit"
+                >
+                  {launchingSession ? "Opening..." : "Open tab"}
+                </button>
+
+                {error ? (
+                  <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger-ink">
+                    {error}
                   </div>
+                ) : null}
+              </div>
+            </form>
+          )}
+        </aside>
 
-                  <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row">
-                    <input
-                      className="min-w-[220px] rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                      onChange={(event) => setSessionUsername(event.target.value)}
-                      placeholder="Username for this session"
-                      value={sessionUsername}
-                    />
-                    <input
-                      className="min-w-[240px] rounded-2xl border border-line bg-surface-soft px-4 py-3 text-sm text-ink outline-none transition focus:border-accent/60"
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="Password for this session"
-                      type="password"
-                      value={password}
-                    />
-                    <button
-                      className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={launchingSession}
-                      onClick={() => void handleConnect()}
-                      type="button"
-                    >
-                      {launchingSession ? "Connecting..." : "Connect"}
-                    </button>
-                    {sessionURL ? (
+        <div className="flex min-h-0 flex-col bg-window">
+          <div className="flex items-center gap-3 border-b border-line bg-window-chrome/80 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 overflow-x-auto pr-2">
+                {tabs.length > 0 ? (
+                  tabs.map((tab) => {
+                    const isActive = tab.id === activeTabId;
+
+                    return (
                       <button
-                        className="rounded-2xl border border-line bg-surface/80 px-4 py-3 text-sm text-ink transition hover:bg-surface"
-                        onClick={() => setSessionURL("")}
+                        key={tab.id}
+                        className={`group inline-flex max-w-[18rem] shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-left text-sm transition ${
+                          isActive
+                            ? "border-accent/35 bg-accent/10 text-accent"
+                            : "border-line bg-surface/75 text-muted hover:bg-surface hover:text-ink"
+                        }`}
+                        onClick={() => setActiveTabId(tab.id)}
+                        title={`${tab.profileName} | ${tab.sessionUsername}`}
                         type="button"
                       >
-                        Disconnect
+                        <span className="min-w-0 truncate">{tab.profileName}</span>
+                        <span className="hidden rounded-full border border-current/20 bg-current/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] sm:inline-flex">
+                          {tab.sessionUsername}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="ml-0.5 text-base leading-none opacity-60 transition group-hover:opacity-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleCloseTab(tab.id);
+                          }}
+                        >
+                          x
+                        </span>
                       </button>
-                    ) : null}
+                    );
+                  })
+                ) : (
+                  <div className="rounded-full border border-dashed border-line bg-surface/60 px-3 py-2 text-sm text-muted">
+                    No active sessions
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {canOpenFullPage ? (
+              <a
+                className="rounded-full border border-line bg-surface/80 px-3 py-1.5 text-sm text-ink transition hover:bg-surface"
+                href={activeTab?.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open full page
+              </a>
+            ) : null}
+          </div>
+
+          {enabled ? (
+            <div className="relative min-h-0 flex-1 bg-canvas">
+              {tabs.length > 0 ? (
+                tabs.map((tab) => {
+                  const isActive = tab.id === activeTabId;
+
+                  return (
+                    <iframe
+                      key={tab.id}
+                      aria-hidden={!isActive}
+                      className={`absolute inset-0 h-full w-full border-0 bg-canvas ${
+                        isActive ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                      src={tab.url}
+                      title={`Nortem Portal Remote Desktop - ${tab.profileName}`}
+                    />
+                  );
+                })
+              ) : (
+                <div className="flex h-full items-center justify-center p-8">
+                  <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
+                    <h3 className="text-2xl font-medium text-ink">
+                      Remote Desktop ready
+                    </h3>
+                    <p className="mt-3 text-sm leading-7 text-muted">
+                      Enter connection details on the left and open multiple remote
+                      sessions as tabs.
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm leading-6 text-muted">
-                  Select a saved machine to start an RDP session inside Nortem Portal.
-                </p>
               )}
-
-              {error ? (
-                <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger-ink">
-                  {error}
-                </div>
-              ) : null}
             </div>
-
-            {sessionURL ? (
-              <iframe
-                className="h-full w-full border-0 bg-canvas"
-                src={sessionURL}
-                title="Nortem Portal Remote Desktop"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center p-8">
-                <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
-                  <h3 className="text-2xl font-medium text-ink">Remote Desktop ready</h3>
-                  <p className="mt-3 text-sm leading-7 text-muted">
-                    Save a machine, enter credentials at connect time, and Nortem Portal
-                    will open the Guacamole-backed RDP session right here.
-                  </p>
-                </div>
+          ) : (
+            <div className="flex h-full items-center justify-center p-8">
+              <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
+                <h3 className="text-2xl font-medium text-ink">Remote Desktop</h3>
+                <p className="mt-3 text-sm leading-7 text-muted">
+                  Configure Nortem Portal&apos;s internal Guacamole gateway to enable
+                  native RDP sessions in this app.
+                </p>
+                {gatewayURL ? (
+                  <p className="mt-3 text-xs text-muted">Gateway path: {gatewayURL}</p>
+                ) : null}
               </div>
-            )}
-          </>
-        ) : (
-          <div className="flex h-full items-center justify-center p-8">
-            <div className="max-w-lg rounded-[2rem] border border-line bg-surface/80 p-8 text-center shadow-soft">
-              <h3 className="text-2xl font-medium text-ink">Remote Desktop</h3>
-              <p className="mt-3 text-sm leading-7 text-muted">
-                Configure Nortem Portal&apos;s internal Guacamole gateway to enable native RDP
-                sessions in this app.
-              </p>
-              {gatewayURL ? (
-                <p className="mt-3 text-xs text-muted">Gateway path: {gatewayURL}</p>
-              ) : null}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
