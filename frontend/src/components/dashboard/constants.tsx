@@ -12,6 +12,8 @@ export const apps: DesktopApp[] = [
   { id: "chromium", label: "Chromium", available: true },
   { id: "terminal", label: "Terminal", available: true },
   { id: "remoteDesktop", label: "Remote Desktop", available: true },
+  { id: "networkScanner", label: "Network Scanner", available: true },
+  { id: "notepad", label: "Notepad", available: true },
   { id: "settings", label: "Settings", available: true },
 ];
 
@@ -47,6 +49,28 @@ export const initialWindows: WindowMap = {
     lastFloatingPosition: { x: 156, y: 84 },
     size: { width: 960, height: 680 },
     lastFloatingSize: { width: 960, height: 680 },
+    zIndex: 1,
+  },
+  networkScanner: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    snapped: null,
+    position: { x: 192, y: 116 },
+    lastFloatingPosition: { x: 192, y: 116 },
+    size: { width: 980, height: 720 },
+    lastFloatingSize: { width: 980, height: 720 },
+    zIndex: 1,
+  },
+  notepad: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    snapped: null,
+    position: { x: 228, y: 140 },
+    lastFloatingPosition: { x: 228, y: 140 },
+    size: { width: 820, height: 620 },
+    lastFloatingSize: { width: 820, height: 620 },
     zIndex: 1,
   },
   settings: {
@@ -149,7 +173,9 @@ export const initialDesktopIcons: IconPositionMap = {
   chromium: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN },
   terminal: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 116 },
   remoteDesktop: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 232 },
-  settings: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 348 },
+  networkScanner: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 348 },
+  notepad: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 464 },
+  settings: { x: DESKTOP_ICON_MARGIN, y: DESKTOP_ICON_MARGIN + 580 },
 };
 
 export function windowTitle(appId: AppID) {
@@ -161,6 +187,12 @@ export function windowTitle(appId: AppID) {
   }
   if (appId === "remoteDesktop") {
     return "Remote Desktop";
+  }
+  if (appId === "networkScanner") {
+    return "Network Scanner";
+  }
+  if (appId === "notepad") {
+    return "Notepad";
   }
   return "Settings";
 }

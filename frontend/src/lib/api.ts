@@ -30,6 +30,23 @@ export type Overview = {
   };
 };
 
+export type NetworkScanItem = {
+  ip: string;
+  hostname: string;
+  mac: string;
+};
+
+export type NetworkScanSummary = {
+  scannedCidrs: string[];
+  skippedCidrs: string[];
+  totalIps: number;
+};
+
+export type NetworkScanResponse = {
+  items: NetworkScanItem[];
+  summary: NetworkScanSummary;
+};
+
 export type RemoteDesktopProfile = {
   id: number;
   userId: number;
@@ -186,5 +203,12 @@ export async function launchRemoteDesktopSession(
   return request<{ url: string }>("/api/v1/remote-desktop/launch", {
     method: "POST",
     body: JSON.stringify({ profileId, username, password }),
+  });
+}
+
+export async function scanNetwork(cidrs: string[] = []) {
+  return request<NetworkScanResponse>("/api/v1/network/scan", {
+    method: "POST",
+    body: JSON.stringify({ cidrs }),
   });
 }

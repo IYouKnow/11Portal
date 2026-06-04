@@ -13,6 +13,8 @@ import {
   closeTerminalSession,
   listTerminalSessions,
 } from "../lib/api";
+import { NetworkScannerPanel } from "./NetworkScannerPanel";
+import { NotepadPanel } from "./NotepadPanel";
 import { RemoteDesktopPanel } from "./RemoteDesktopPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import {
@@ -429,6 +431,26 @@ export function Dashboard({
             typeof parsed.remoteDesktop?.y === "number"
               ? parsed.remoteDesktop.y
               : initialDesktopIcons.remoteDesktop.y,
+        },
+        networkScanner: {
+          x:
+            typeof parsed.networkScanner?.x === "number"
+              ? parsed.networkScanner.x
+              : initialDesktopIcons.networkScanner.x,
+          y:
+            typeof parsed.networkScanner?.y === "number"
+              ? parsed.networkScanner.y
+              : initialDesktopIcons.networkScanner.y,
+        },
+        notepad: {
+          x:
+            typeof parsed.notepad?.x === "number"
+              ? parsed.notepad.x
+              : initialDesktopIcons.notepad.x,
+          y:
+            typeof parsed.notepad?.y === "number"
+              ? parsed.notepad.y
+              : initialDesktopIcons.notepad.y,
         },
         settings: {
           x:
@@ -1231,17 +1253,25 @@ export function Dashboard({
       );
     }
 
-      return (
-        <SettingsPanel
-          desktopLaunchMode={desktopLaunchMode}
-          error={error}
-          onApplyPresetWallpaper={applyPresetWallpaper}
-          onDesktopLaunchModeChange={setDesktopLaunchMode}
-          onShowDockChange={setShowDock}
-          onWallpaperUpload={handleWallpaperUpload}
-          showDock={showDock}
-          user={user}
-          wallpaper={wallpaper}
+    if (appId === "networkScanner") {
+      return <NetworkScannerPanel />;
+    }
+
+    if (appId === "notepad") {
+      return <NotepadPanel storageKey={`portal.notepad.${user.id}`} />;
+    }
+
+    return (
+      <SettingsPanel
+        desktopLaunchMode={desktopLaunchMode}
+        error={error}
+        onApplyPresetWallpaper={applyPresetWallpaper}
+        onDesktopLaunchModeChange={setDesktopLaunchMode}
+        onShowDockChange={setShowDock}
+        onWallpaperUpload={handleWallpaperUpload}
+        showDock={showDock}
+        user={user}
+        wallpaper={wallpaper}
         wallpaperError={wallpaperError}
       />
     );

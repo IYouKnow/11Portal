@@ -19,7 +19,13 @@ export type DashboardProps = {
   ) => Promise<void>;
 };
 
-export type AppID = "chromium" | "terminal" | "remoteDesktop" | "settings";
+export type AppID =
+  | "chromium"
+  | "terminal"
+  | "remoteDesktop"
+  | "networkScanner"
+  | "notepad"
+  | "settings";
 
 export type DesktopApp = {
   id: AppID;
@@ -120,4 +126,21 @@ export type WallpaperState = {
   presetId: WallpaperPresetId;
   image: string;
   overlay: string;
+};
+
+export type NetworkScanItem = {
+  ip: string;
+  hostname: string;
+  mac: string;
+};
+
+export type NetworkScanSummary = {
+  scannedCidrs: string[];
+  skippedCidrs: string[];
+  totalIps: number;
+};
+
+export type NetworkScanResponse = {
+  items: NetworkScanItem[];
+  summary: NetworkScanSummary;
 };

@@ -60,6 +60,50 @@ export function AppIcon({ appId }: { appId: AppID }) {
     );
   }
 
+  if (appId === "networkScanner") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-7 w-7"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="9" cy="9" r="4.5" />
+        <path d="M12.2 12.2 17 17" />
+        <path d="M6.7 9h4.6" />
+        <path d="M9 6.7v4.6" />
+        <path d="M14.5 6.5h4" />
+        <path d="M14.5 9.5h4" />
+        <path d="M14.5 12.5h4" />
+      </svg>
+    );
+  }
+
+  if (appId === "notepad") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-7 w-7"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M7 4.5h7.2L18.5 8v11.5A2 2 0 0 1 16.5 21h-9A2 2 0 0 1 5.5 19V6.5A2 2 0 0 1 7.5 4.5Z" />
+        <path d="M14.2 4.5V8h4.3" />
+        <path d="M8.5 11h7" />
+        <path d="M8.5 14h7" />
+        <path d="M8.5 17h5.2" />
+      </svg>
+    );
+  }
+
   return (
     <Settings aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />
   );

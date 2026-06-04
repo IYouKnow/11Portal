@@ -152,8 +152,9 @@ export function LoginScreen({ loading, error, onSubmit }: LoginScreenProps) {
               </div>
 
               <button
-                className="mt-5 flex w-full items-center justify-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3.5 text-sm font-medium text-ink transition hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                className="mt-5 flex w-full items-center justify-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3.5 text-sm font-medium text-ink transition disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
+                disabled
               >
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">
                   N
