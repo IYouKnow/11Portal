@@ -88,7 +88,7 @@ export type SshConnectPayload = {
 };
 
 export type CreateSessionRequest =
-  | { type: "local" }
+  | { type: "local"; command?: string }
   | { type: "ssh"; ssh: SshConnectPayload };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

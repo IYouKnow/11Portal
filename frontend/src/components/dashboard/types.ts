@@ -25,12 +25,32 @@ export type AppID =
   | "remoteDesktop"
   | "networkScanner"
   | "notepad"
+  | "shortcutManager"
   | "settings";
 
 export type DesktopApp = {
   id: AppID;
   label: string;
   available: boolean;
+};
+
+export type ShortcutIconName =
+  | "link"
+  | "globe"
+  | "folder"
+  | "mail"
+  | "code"
+  | "image"
+  | "play";
+
+export type ShortcutDefinition = {
+  id: string;
+  name: string;
+  label: string;
+  url: string;
+  iconUrl: string;
+  kind: "browser" | "terminal";
+  createdAt: string;
 };
 
 export type SnapMode =
@@ -92,11 +112,11 @@ export type IconPosition = {
   y: number;
 };
 
-export type IconPositionMap = Record<AppID, IconPosition>;
+export type IconPositionMap = Record<string, IconPosition>;
 
 export type IconDragState = {
-  appId: AppID;
-  appIds: AppID[];
+  appId: string;
+  appIds: string[];
   pointerId: number;
   offsetX: number;
   offsetY: number;

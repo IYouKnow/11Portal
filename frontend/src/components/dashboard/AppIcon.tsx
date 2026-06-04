@@ -1,4 +1,7 @@
-import { Settings } from "lucide-react";
+import {
+  Link2,
+  Settings,
+} from "lucide-react";
 import type { AppID } from "./types";
 
 export function AppIcon({ appId }: { appId: AppID }) {
@@ -101,6 +104,12 @@ export function AppIcon({ appId }: { appId: AppID }) {
         <path d="M8.5 14h7" />
         <path d="M8.5 17h5.2" />
       </svg>
+    );
+  }
+
+  if (appId === "shortcutManager") {
+    return (
+      <Link2 aria-hidden="true" className="h-7 w-7" strokeWidth={1.9} />
     );
   }
 

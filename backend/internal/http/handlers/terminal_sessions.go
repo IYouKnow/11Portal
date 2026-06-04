@@ -16,8 +16,9 @@ type TerminalSessionHandler struct {
 }
 
 type createTerminalSessionRequest struct {
-	Type string `json:"type"`
-	SSH  *struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
+	SSH     *struct {
 		Host       string `json:"host"`
 		Port       int    `json:"port"`
 		Username   string `json:"username"`
@@ -47,8 +48,9 @@ func (h *TerminalSessionHandler) Create(c *fiber.Ctx) error {
 	}
 
 	input := terminal.CreateSessionInput{
-		Type:  terminal.SessionType(body.Type),
-		Shell: h.cfg.Shell,
+		Type:         terminal.SessionType(body.Type),
+		Shell:        h.cfg.Shell,
+		InitialInput: body.Command,
 	}
 	if body.SSH != nil {
 		input.SSH = &terminal.SSHConfig{

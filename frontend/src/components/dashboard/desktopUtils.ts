@@ -4,10 +4,8 @@ import {
   DESKTOP_ICON_HEIGHT,
   DESKTOP_ICON_MARGIN,
   DESKTOP_ICON_WIDTH,
-  apps,
 } from "./constants";
 import type {
-  AppID,
   DesktopSelectionState,
   IconPosition,
   IconPositionMap,
@@ -125,14 +123,12 @@ function findNearestAvailableDesktopCell(
 export function normalizeDesktopIconPositions(
   positions: IconPositionMap,
   bounds: DOMRect,
-  prioritizedAppId?: AppID,
+  prioritizedAppId?: string,
 ): IconPositionMap {
+  const appIds = Object.keys(positions);
   const appOrder = prioritizedAppId
-    ? [
-        prioritizedAppId,
-        ...apps.map((app) => app.id).filter((appId) => appId !== prioritizedAppId),
-      ]
-    : apps.map((app) => app.id);
+    ? [prioritizedAppId, ...appIds.filter((appId) => appId !== prioritizedAppId)]
+    : appIds;
   const occupied = new Set<string>();
   const nextPositions = {} as IconPositionMap;
 
@@ -151,7 +147,7 @@ export function normalizeDesktopIconPositions(
   return nextPositions;
 }
 
-function getIconGroupBounds(appIds: AppID[], positions: IconPositionMap) {
+function getIconGroupBounds(appIds: string[], positions: IconPositionMap) {
   const xs = appIds.map((appId) => positions[appId].x);
   const ys = appIds.map((appId) => positions[appId].y);
 
@@ -165,7 +161,7 @@ function getIconGroupBounds(appIds: AppID[], positions: IconPositionMap) {
 
 export function translateDesktopIconGroup(
   positions: IconPositionMap,
-  appIds: AppID[],
+  appIds: string[],
   deltaX: number,
   deltaY: number,
   bounds: DOMRect,
@@ -196,15 +192,15 @@ export function translateDesktopIconGroup(
 export function snapDesktopIconGroup(
   positions: IconPositionMap,
   bounds: DOMRect,
-  groupAppIds: AppID[],
+  groupAppIds: string[],
 ): IconPositionMap {
   if (groupAppIds.length === 0) {
     return normalizeDesktopIconPositions(positions, bounds);
   }
 
-  const nonGroupIds = apps
-    .map((app) => app.id)
-    .filter((appId) => !groupAppIds.includes(appId));
+  const nonGroupIds = Object.keys(positions).filter(
+    (appId) => !groupAppIds.includes(appId),
+  );
   const occupied = new Set<string>();
   const nextPositions = { ...positions };
 

@@ -48,9 +48,10 @@ type SSHConfig struct {
 }
 
 type CreateSessionInput struct {
-	Type  SessionType
-	Shell string
-	SSH   *SSHConfig
+	Type        SessionType
+	Shell       string
+	InitialInput string
+	SSH         *SSHConfig
 }
 
 type SessionView struct {
@@ -180,7 +181,7 @@ func (m *Manager) CreateSession(ownerUserID int64, input CreateSessionInput) (*S
 	switch input.Type {
 	case SessionTypeLocal:
 		view.Title = "Local Shell"
-		session, err = newLocalSession(view, input.Shell)
+		session, err = newLocalSession(view, input.Shell, input.InitialInput)
 	case SessionTypeSSH:
 		if input.SSH == nil {
 			return nil, ErrInvalidConfig
@@ -275,7 +276,7 @@ func (h *SessionHandle) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func newLocalSession(view SessionView, shell string) (*managedSession, error) {
+func newLocalSession(view SessionView, shell string, initialInput string) (*managedSession, error) {
 	commandPath, commandArgs, err := resolveLocalShell(shell)
 	if err != nil {
 		return nil, err
@@ -285,6 +286,15 @@ func newLocalSession(view SessionView, shell string) (*managedSession, error) {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		return nil, err
+	}
+
+	if trimmed := strings.TrimSpace(initialInput); trimmed != "" {
+		if _, err := io.WriteString(ptmx, initialInput); err != nil {
+			_ = ptmx.Close()
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			return nil, err
+		}
 	}
 
 	return &managedSession{

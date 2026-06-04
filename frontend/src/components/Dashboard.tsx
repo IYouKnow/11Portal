@@ -9,12 +9,14 @@ import {
   useState,
 } from "react";
 import {
+  createTerminalSession,
   closeBrowserRuntime,
   closeTerminalSession,
   listTerminalSessions,
 } from "../lib/api";
 import { NetworkScannerPanel } from "./NetworkScannerPanel";
 import { NotepadPanel } from "./NotepadPanel";
+import { ShortcutPanel } from "./ShortcutPanel";
 import { RemoteDesktopPanel } from "./RemoteDesktopPanel";
 import { TerminalPanel } from "./TerminalPanel";
 import {
@@ -55,6 +57,7 @@ import type {
   IconPositionMap,
   ResizeDirection,
   ResizeState,
+  ShortcutDefinition,
   WallpaperPresetId,
   WallpaperState,
   WindowInstance,
@@ -73,6 +76,14 @@ function createWindowInstanceId(appId: AppID) {
   }
 
   return `${appId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createShortcutId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `shortcut-${crypto.randomUUID()}`;
+  }
+
+  return `shortcut-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function Dashboard({
@@ -97,14 +108,19 @@ export function Dashboard({
   const [wallpaper, setWallpaper] = useState<WallpaperState>(initialWallpaper);
   const [draggingApp, setDraggingApp] = useState<AppID | null>(null);
   const [draggingDesktopIcon, setDraggingDesktopIcon] =
-    useState<AppID | null>(null);
+    useState<string | null>(null);
   const [desktopIcons, setDesktopIcons] =
     useState<IconPositionMap>(initialDesktopIcons);
   const [desktopIconsLoaded, setDesktopIconsLoaded] = useState(false);
+  const [shortcuts, setShortcuts] = useState<ShortcutDefinition[]>([]);
+  const [shortcutsLoaded, setShortcutsLoaded] = useState(false);
   const [desktopLaunchMode, setDesktopLaunchMode] =
     useState<DesktopLaunchMode>("double");
   const [showDock, setShowDock] = useState(true);
-  const [selectedDesktopApps, setSelectedDesktopApps] = useState<AppID[]>([]);
+  const [terminalRefreshToken, setTerminalRefreshToken] = useState(0);
+  const [preferredTerminalSessionId, setPreferredTerminalSessionId] =
+    useState<string | null>(null);
+  const [selectedDesktopApps, setSelectedDesktopApps] = useState<string[]>([]);
   const [desktopSelection, setDesktopSelection] =
     useState<DesktopSelectionState>(null);
   const [snapPreview, setSnapPreview] = useState<
@@ -113,7 +129,7 @@ export function Dashboard({
   const dragStateRef = useRef<DragState>(null);
   const resizeStateRef = useRef<ResizeState>(null);
   const iconDragStateRef = useRef<IconDragState>(null);
-  const suppressIconClickRef = useRef<AppID | null>(null);
+  const suppressIconClickRef = useRef<string | null>(null);
   const desktopIconsRef = useRef<IconPositionMap>(initialDesktopIcons);
   const desktopAreaRef = useRef<HTMLDivElement | null>(null);
   const nextZIndexRef = useRef(4);
@@ -127,6 +143,7 @@ export function Dashboard({
     overview.platform.remoteDesktopGatewayURL?.trim() || "";
   const wallpaperStorageKey = `portal.wallpaper.${user.id}`;
   const desktopIconsStorageKey = `portal.desktop-icons.${user.id}`;
+  const shortcutsStorageKey = `portal.shortcuts.${user.id}`;
   const desktopLaunchModeStorageKey = `portal.desktop-launch-mode.${user.id}`;
   const showDockStorageKey = `portal.show-dock.${user.id}`;
   const minWindowSize = {
@@ -139,6 +156,18 @@ export function Dashboard({
     [activeWindowId, windows],
   );
   const activeApp = activeWindow?.appId ?? null;
+  const desktopItemIds = useMemo(
+    () => [
+      ...apps
+        .map((app) => app.id)
+        .filter((appId) => appId !== "shortcutManager"),
+      ...shortcuts.map((shortcut) => shortcut.id),
+    ],
+    [shortcuts],
+  );
+  const shortcutById = useMemo(() => {
+    return new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut] as const));
+  }, [shortcuts]);
 
   const createWindow = (appId: AppID): WindowInstance => {
     const template = initialWindows[appId];
@@ -219,6 +248,108 @@ export function Dashboard({
     const nextWindow = createWindow(appId);
     setWindows((current) => [...current, nextWindow]);
     setActiveWindowId(nextWindow.id);
+  };
+
+  const ensureAppVisible = (appId: AppID) => {
+    const topWindow = getTopWindowForApp(appId);
+    if (!topWindow) {
+      openApp(appId);
+      return;
+    }
+
+    if (topWindow.minimized) {
+      restoreWindow(topWindow.id);
+      return;
+    }
+
+    focusWindow(topWindow.id);
+  };
+
+  const normalizeShortcutUrl = (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+      return "";
+    }
+
+    try {
+      return new URL(trimmed).toString();
+    } catch {
+      try {
+        return new URL(`https://${trimmed}`).toString();
+      } catch {
+        return "";
+      }
+    }
+  };
+
+  const normalizeIconUrl = (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+      return "";
+    }
+
+    try {
+      return new URL(trimmed).toString();
+    } catch {
+      return "";
+    }
+  };
+
+  const normalizeShortcutCommand = (rawCommand: string) => rawCommand.trim();
+
+  const openShortcut = async (shortcutId: string) => {
+    const shortcut = shortcutById.get(shortcutId);
+    if (!shortcut) {
+      return;
+    }
+
+    if (shortcut.kind === "terminal") {
+      const command = normalizeShortcutCommand(shortcut.url);
+      if (!command) {
+        return;
+      }
+
+      try {
+        const response = await createTerminalSession({
+          type: "local",
+          command,
+        });
+        setPreferredTerminalSessionId(response.item.id);
+        setTerminalRefreshToken((current) => current + 1);
+        ensureAppVisible("terminal");
+      } catch {
+        // Ignore terminal shortcut launch failures quietly for now.
+      }
+      return;
+    }
+
+    const normalizedUrl = normalizeShortcutUrl(shortcut.url);
+    if (normalizedUrl) {
+      window.open(normalizedUrl, "_blank", "noreferrer");
+    }
+  };
+
+  const placeNewShortcut = (shortcutId: string) => {
+    const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+    if (!desktopBounds) {
+      return;
+    }
+
+    const fallbackPosition = {
+      x: initialDesktopIcons.settings.x,
+      y: initialDesktopIcons.settings.y,
+    };
+
+    setDesktopIcons((current) =>
+      normalizeDesktopIconPositions(
+        {
+          ...current,
+          [shortcutId]: fallbackPosition,
+        },
+        desktopBounds,
+        shortcutId,
+      ),
+    );
   };
 
   const restoreWindow = (windowId: string) => {
@@ -531,6 +662,54 @@ export function Dashboard({
       return;
     }
 
+    const raw = window.localStorage.getItem(shortcutsStorageKey);
+    if (!raw) {
+      setShortcuts([]);
+      setShortcutsLoaded(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<ShortcutDefinition>[];
+      const nextShortcuts = parsed
+        .map((shortcut) => {
+          if (
+            typeof shortcut?.id !== "string" ||
+            typeof shortcut?.label !== "string" ||
+            typeof shortcut?.url !== "string" ||
+            typeof shortcut?.createdAt !== "string"
+          ) {
+            return null;
+          }
+
+          return {
+            ...shortcut,
+            kind: shortcut.kind === "terminal" ? "terminal" : "browser",
+            name:
+              typeof shortcut.name === "string" && shortcut.name.trim()
+                ? shortcut.name
+                : shortcut.label,
+            iconUrl:
+              typeof shortcut.iconUrl === "string"
+                ? normalizeIconUrl(shortcut.iconUrl)
+                : "",
+          } as ShortcutDefinition;
+        })
+        .filter((shortcut): shortcut is ShortcutDefinition => shortcut !== null);
+
+      setShortcuts(nextShortcuts);
+    } catch {
+      setShortcuts([]);
+    }
+
+    setShortcutsLoaded(true);
+  }, [shortcutsStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     const raw = window.localStorage.getItem(desktopLaunchModeStorageKey);
     if (raw === "single" || raw === "double") {
       setDesktopLaunchMode(raw);
@@ -816,6 +995,14 @@ export function Dashboard({
   }, [desktopIcons, desktopIconsLoaded, desktopIconsStorageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !shortcutsLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(shortcutsStorageKey, JSON.stringify(shortcuts));
+  }, [shortcuts, shortcutsLoaded, shortcutsStorageKey]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -854,6 +1041,32 @@ export function Dashboard({
       window.removeEventListener("resize", clampIconsToDesktop);
     };
   }, []);
+
+  useEffect(() => {
+    if (!desktopIconsLoaded || !shortcutsLoaded) {
+      return;
+    }
+
+    const desktopBounds = desktopAreaRef.current?.getBoundingClientRect();
+    if (!desktopBounds) {
+      return;
+    }
+
+    setDesktopIcons((current) => {
+      const nextIcons = { ...current };
+
+      for (const shortcut of shortcuts) {
+        if (!nextIcons[shortcut.id]) {
+          nextIcons[shortcut.id] = {
+            x: initialDesktopIcons.settings.x,
+            y: initialDesktopIcons.settings.y,
+          };
+        }
+      }
+
+      return normalizeDesktopIconPositions(nextIcons, desktopBounds);
+    });
+  }, [desktopIconsLoaded, shortcuts, shortcutsLoaded]);
 
   useEffect(() => {
     const handleIconPointerMove = (event: PointerEvent) => {
@@ -1135,6 +1348,39 @@ export function Dashboard({
     }
   };
 
+  const handleCreateShortcut = (payload: {
+    name: string;
+    kind: "browser" | "terminal";
+    url: string;
+    iconUrl: string;
+  }) => {
+    const shortcutValue =
+      payload.kind === "terminal"
+        ? normalizeShortcutCommand(payload.url)
+        : normalizeShortcutUrl(payload.url);
+    if (!shortcutValue) {
+      return;
+    }
+
+    const normalizedIconUrl = normalizeIconUrl(payload.iconUrl);
+    if (!normalizedIconUrl) {
+      return;
+    }
+
+    const nextShortcut: ShortcutDefinition = {
+      id: createShortcutId(),
+      name: payload.name.trim(),
+      label: payload.name.trim(),
+      url: shortcutValue,
+      iconUrl: normalizedIconUrl,
+      kind: payload.kind,
+      createdAt: new Date().toISOString(),
+    };
+
+    setShortcuts((current) => [...current, nextShortcut]);
+    placeNewShortcut(nextShortcut.id);
+  };
+
   const handleWallpaperUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -1210,16 +1456,14 @@ export function Dashboard({
     setDesktopSelection(nextSelection);
 
     const selectionBounds = getSelectionBounds(nextSelection);
-    const selectedApps = apps
-      .filter((app) =>
-        rectanglesIntersect(selectionBounds, {
-          left: desktopIconsRef.current[app.id].x,
-          top: desktopIconsRef.current[app.id].y,
-          width: DESKTOP_ICON_WIDTH,
-          height: DESKTOP_ICON_HEIGHT,
-        }),
-      )
-      .map((app) => app.id);
+    const selectedApps = desktopItemIds.filter((itemId) =>
+      rectanglesIntersect(selectionBounds, {
+        left: desktopIconsRef.current[itemId].x,
+        top: desktopIconsRef.current[itemId].y,
+        width: DESKTOP_ICON_WIDTH,
+        height: DESKTOP_ICON_HEIGHT,
+      }),
+    );
 
     setSelectedDesktopApps(selectedApps);
   };
@@ -1235,7 +1479,7 @@ export function Dashboard({
   };
 
   const startDesktopIconDrag = (
-    appId: AppID,
+    appId: string,
     event: ReactPointerEvent<HTMLButtonElement>,
   ) => {
     if (event.button !== 0) {
@@ -1271,29 +1515,41 @@ export function Dashboard({
     setDraggingDesktopIcon(appId);
   };
 
-  const handleDesktopIconClick = async (appId: AppID) => {
-    if (suppressIconClickRef.current === appId) {
+  const launchDesktopItem = async (itemId: string) => {
+    if (shortcutById.has(itemId)) {
+      await openShortcut(itemId);
+      return;
+    }
+
+    launchApp(itemId as AppID);
+  };
+
+  const handleDesktopItemClick = async (itemId: string) => {
+    if (suppressIconClickRef.current === itemId) {
       suppressIconClickRef.current = null;
       return;
     }
 
-    setSelectedDesktopApps([appId]);
+    setSelectedDesktopApps([itemId]);
     if (desktopLaunchMode !== "single") {
       return;
     }
 
-    launchApp(appId);
+    await launchDesktopItem(itemId);
   };
 
-  const handleDesktopIconDoubleClick = async (appId: AppID) => {
-    if (suppressIconClickRef.current === appId) {
+  const handleDesktopItemDoubleClick = async (itemId: string) => {
+    if (suppressIconClickRef.current === itemId) {
       suppressIconClickRef.current = null;
       return;
     }
 
-    setSelectedDesktopApps([appId]);
-    launchApp(appId);
+    setSelectedDesktopApps([itemId]);
+    await launchDesktopItem(itemId);
   };
+
+  const handleDesktopIconClick = handleDesktopItemClick;
+  const handleDesktopIconDoubleClick = handleDesktopItemDoubleClick;
 
   const renderWindowContent = (windowInstance: WindowInstance) => {
     const { appId } = windowInstance;
@@ -1316,6 +1572,8 @@ export function Dashboard({
       return (
         <TerminalPanel
           active={activeWindowId === windowInstance.id && !windowInstance.minimized}
+          preferredSessionId={preferredTerminalSessionId}
+          refreshToken={terminalRefreshToken}
         />
       );
     }
@@ -1335,6 +1593,12 @@ export function Dashboard({
 
     if (appId === "notepad") {
       return <NotepadPanel storageKey={`portal.notepad.${user.id}`} />;
+    }
+
+    if (appId === "shortcutManager") {
+      return (
+        <ShortcutPanel onCreateShortcut={handleCreateShortcut} />
+      );
     }
 
     return (
@@ -1403,6 +1667,7 @@ export function Dashboard({
             desktopLaunchMode={desktopLaunchMode}
             desktopSelection={desktopSelection}
             draggingDesktopIcon={draggingDesktopIcon}
+            shortcuts={shortcuts}
             useLightLabels={!showDesktopGrid}
             onDesktopIconClick={handleDesktopIconClick}
             onDesktopIconDoubleClick={handleDesktopIconDoubleClick}
@@ -1410,7 +1675,10 @@ export function Dashboard({
             onDesktopPointerEnd={handleDesktopPointerEnd}
             onDesktopPointerMove={handleDesktopPointerMove}
             onStartDesktopIconDrag={startDesktopIconDrag}
-            selectedDesktopApps={selectedDesktopApps}
+            onShortcutClick={handleDesktopItemClick}
+            onShortcutDoubleClick={handleDesktopItemDoubleClick}
+            onStartShortcutDrag={startDesktopIconDrag}
+            selectedDesktopItems={selectedDesktopApps}
           />
 
           {showDock ? (

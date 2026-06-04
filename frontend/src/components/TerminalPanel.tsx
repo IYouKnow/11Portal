@@ -13,6 +13,8 @@ import { useTheme } from "../theme-context";
 
 type TerminalPanelProps = {
   active: boolean;
+  refreshToken?: number;
+  preferredSessionId?: string | null;
 };
 
 type SessionRuntime = {
@@ -25,6 +27,8 @@ type SessionHostMap = Record<string, HTMLDivElement | null>;
 
 export const TerminalPanel = memo(function TerminalPanel({
   active,
+  refreshToken = 0,
+  preferredSessionId = null,
 }: TerminalPanelProps) {
   const { resolvedTheme } = useTheme();
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
@@ -40,7 +44,16 @@ export const TerminalPanel = memo(function TerminalPanel({
       try {
         const response = await listTerminalSessions();
         setSessions(response.items);
-        setActiveSessionId((current) => current ?? response.items[0]?.id ?? null);
+        setActiveSessionId((current) => {
+          if (
+            preferredSessionId &&
+            response.items.some((session) => session.id === preferredSessionId)
+          ) {
+            return preferredSessionId;
+          }
+
+          return current ?? response.items[0]?.id ?? null;
+        });
         setError(null);
       } catch (loadError) {
         setError(
@@ -52,7 +65,7 @@ export const TerminalPanel = memo(function TerminalPanel({
     };
 
     void loadSessions();
-  }, []);
+  }, [preferredSessionId, refreshToken]);
 
   useEffect(() => {
     if (!sessions.some((session) => session.id === activeSessionId)) {
@@ -61,12 +74,12 @@ export const TerminalPanel = memo(function TerminalPanel({
   }, [activeSessionId, sessions]);
 
   useEffect(() => {
-    if (!active || sessions.length > 0 || isCreatingSession) {
+    if (preferredSessionId || !active || sessions.length > 0 || isCreatingSession) {
       return;
     }
 
     void handleCreateSession();
-  }, [active, isCreatingSession, sessions.length]);
+  }, [active, isCreatingSession, preferredSessionId, sessions.length]);
 
   useEffect(() => {
     for (const session of sessions) {

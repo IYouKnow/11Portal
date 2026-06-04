@@ -14,6 +14,7 @@ export const apps: DesktopApp[] = [
   { id: "remoteDesktop", label: "Remote Desktop", available: true },
   { id: "networkScanner", label: "Network Scanner", available: true },
   { id: "notepad", label: "Notepad", available: true },
+  { id: "shortcutManager", label: "Shortcut", available: true },
   { id: "settings", label: "Settings", available: true },
 ];
 
@@ -82,6 +83,17 @@ export const initialWindows: WindowMap = {
     lastFloatingPosition: { x: 128, y: 112 },
     size: { width: 760, height: 620 },
     lastFloatingSize: { width: 760, height: 620 },
+    zIndex: 1,
+  },
+  shortcutManager: {
+    open: false,
+    minimized: false,
+    maximized: false,
+    snapped: null,
+    position: { x: 220, y: 168 },
+    lastFloatingPosition: { x: 220, y: 168 },
+    size: { width: 720, height: 520 },
+    lastFloatingSize: { width: 720, height: 520 },
     zIndex: 1,
   },
 };
@@ -193,6 +205,9 @@ export function windowTitle(appId: AppID) {
   }
   if (appId === "notepad") {
     return "Notepad";
+  }
+  if (appId === "shortcutManager") {
+    return "Shortcuts";
   }
   return "Settings";
 }
