@@ -3,12 +3,14 @@ package networkscan
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -29,12 +31,10 @@ type ScanOptions struct {
 	Timeout     time.Duration
 	Concurrency int
 	MaxIPs      int
+	ProbePorts  []string
 }
 
-type resultSet struct {
-	sync.Mutex
-	items map[string]Result
-}
+var defaultProbePorts = []string{"80", "443", "22", "3389", "445"}
 
 func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 	timeout := opts.Timeout
@@ -78,7 +78,14 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 		}, nil
 	}
 
-	seen := &resultSet{items: map[string]Result{}}
+	probePorts := opts.ProbePorts
+	if len(probePorts) == 0 {
+		probePorts = defaultProbePorts
+	}
+
+	alive := map[string]struct{}{}
+	var aliveMu sync.Mutex
+
 	jobs := make(chan string)
 	var workers sync.WaitGroup
 
@@ -92,7 +99,11 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 					return
 				}
 
-				_, _ = dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip, "80"))
+				if probeHost(ctx, dialer, ip, probePorts) {
+					aliveMu.Lock()
+					alive[ip] = struct{}{}
+					aliveMu.Unlock()
+				}
 			}
 		}()
 	}
@@ -117,27 +128,24 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 	}
 
 	arpEntries, _ := readARPTable()
+	results := make([]Result, 0, len(alive))
 	for _, ip := range targetIPs {
-		mac := arpEntries[ip]
-		if mac == "" || isZeroMAC(mac) {
+		if _, ok := alive[ip]; !ok {
 			continue
 		}
 
-		seen.Lock()
-		if _, exists := seen.items[ip]; !exists {
-			seen.items[ip] = Result{
-				IP:       ip,
-				Hostname: lookupHostname(ctx, ip),
-				MAC:      strings.ToUpper(mac),
-			}
+		item := Result{
+			IP:       ip,
+			Hostname: lookupHostname(ctx, ip),
 		}
-		seen.Unlock()
-	}
 
-	results := make([]Result, 0, len(seen.items))
-	for _, item := range seen.items {
+		if mac := arpEntries[ip]; mac != "" && !isZeroMAC(mac) {
+			item.MAC = strings.ToUpper(mac)
+		}
+
 		results = append(results, item)
 	}
+
 	sort.Slice(results, func(i, j int) bool {
 		return compareIPv4(results[i].IP, results[j].IP) < 0
 	})
@@ -147,6 +155,26 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 		SkippedCIDRs: skipped,
 		TotalIPs:     len(targetIPs),
 	}, nil
+}
+
+func probeHost(ctx context.Context, dialer net.Dialer, ip string, ports []string) bool {
+	for _, port := range ports {
+		if ctx.Err() != nil {
+			return false
+		}
+
+		conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip, port))
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+
+		if isResponsiveDialError(err) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func resolveTargets(cidrs []string, maxIPs int) ([]*net.IPNet, []string, error) {
@@ -407,4 +435,26 @@ func uniqueStrings(values []string) []string {
 func isZeroMAC(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	return normalized == "00:00:00:00:00:00"
+}
+
+func isResponsiveDialError(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if errors.Is(opErr.Err, syscall.ECONNREFUSED) || errors.Is(opErr.Err, syscall.ECONNRESET) {
+			return true
+		}
+		if opErr.Timeout() {
+			return false
+		}
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "connection refused")
 }
