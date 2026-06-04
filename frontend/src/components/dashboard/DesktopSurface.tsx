@@ -10,14 +10,11 @@ import type {
 } from "./types";
 
 type DesktopSurfaceProps = {
-  activeApp: AppID | null;
   desktopAreaRef: Ref<HTMLDivElement>;
   desktopIcons: IconPositionMap;
   desktopLaunchMode: DesktopLaunchMode;
   desktopSelection: DesktopSelectionState;
   draggingDesktopIcon: AppID | null;
-  isAppMinimized: (appId: AppID) => boolean;
-  isAppOpen: (appId: AppID) => boolean;
   useLightLabels: boolean;
   onDesktopPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onDesktopPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -32,14 +29,11 @@ type DesktopSurfaceProps = {
 };
 
 export function DesktopSurface({
-  activeApp,
   desktopAreaRef,
   desktopIcons,
   desktopLaunchMode,
   desktopSelection,
   draggingDesktopIcon,
-  isAppMinimized,
-  isAppOpen,
   useLightLabels,
   onDesktopPointerDown,
   onDesktopPointerMove,
@@ -90,12 +84,10 @@ export function DesktopSurface({
           type="button"
         >
           <div
-            className={`flex h-16 w-16 items-center justify-center rounded-2xl border backdrop-blur-sm transition ${
+            className={`flex h-16 w-16 items-center justify-center rounded-2xl border text-ink backdrop-blur-sm transition dark:text-white ${
               selectedDesktopApps.includes(app.id)
                 ? "border-line-strong/40 bg-surface/70"
-                : activeApp === app.id && isAppOpen(app.id) && !isAppMinimized(app.id)
-                  ? "border-accent/45 bg-accent/15 shadow-[0_0_22px_rgba(56,189,248,0.18)]"
-                  : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
+                : "border-line bg-panel/45 group-hover:border-line-strong/40 group-hover:bg-surface/70"
             }`}
           >
             <AppIcon appId={app.id} />

@@ -5,22 +5,23 @@ import type {
 } from "react";
 import { windowTitle } from "./constants";
 import { getSnapBounds } from "./desktopUtils";
-import type { AppID, ResizeDirection, WindowState } from "./types";
+import type { AppID, ResizeDirection, WindowInstance } from "./types";
 
 type WindowFrameProps = {
-  activeApp: AppID | null;
+  activeWindowId: string | null;
   appId: AppID;
   children: ReactNode;
-  onClose: (appId: AppID) => void | Promise<void>;
-  onFocus: (appId: AppID) => void;
-  onMinimize: (appId: AppID) => void;
+  windowId: string;
+  onClose: (windowId: string) => void | Promise<void>;
+  onFocus: (windowId: string) => void;
+  onMinimize: (windowId: string) => void;
   onStartResizing: (
-    appId: AppID,
+    windowId: string,
     direction: ResizeDirection,
     event: ReactPointerEvent<HTMLDivElement>,
   ) => void;
   onStartDragging: (
-    appId: AppID,
+    windowId: string,
     event: ReactPointerEvent<HTMLDivElement>,
   ) => void;
   onStopWindowControlMouse: (
@@ -29,14 +30,15 @@ type WindowFrameProps = {
   onStopWindowControlPointer: (
     event: ReactPointerEvent<HTMLButtonElement>,
   ) => void;
-  onToggleMaximize: (appId: AppID) => void;
-  windowState: WindowState;
+  onToggleMaximize: (windowId: string) => void;
+  windowState: WindowInstance;
 };
 
 export function WindowFrame({
-  activeApp,
+  activeWindowId,
   appId,
   children,
+  windowId,
   onClose,
   onFocus,
   onMinimize,
@@ -90,7 +92,7 @@ export function WindowFrame({
           ? "h-screen w-screen"
           : ""
       }`}
-      onMouseDown={() => onFocus(appId)}
+      onMouseDown={() => onFocus(windowId)}
       style={{
         zIndex: 20 + windowState.zIndex,
         left: isFramedToViewport
@@ -113,7 +115,7 @@ export function WindowFrame({
     >
       <div
         className={`relative flex h-full flex-col overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
-          activeApp === appId
+          activeWindowId === windowId
             ? "border-accent/30 bg-window-active"
             : "border-line bg-window/95"
         } ${windowState.maximized ? "rounded-none" : "rounded-2xl"}`}
@@ -129,8 +131,8 @@ export function WindowFrame({
           : null}
         <div
           className="flex h-10 shrink-0 select-none items-center justify-between border-b border-line bg-window-chrome/95 px-3"
-          onDoubleClick={() => onToggleMaximize(appId)}
-          onPointerDown={(event) => onStartDragging(appId, event)}
+          onDoubleClick={() => onToggleMaximize(windowId)}
+          onPointerDown={(event) => onStartDragging(windowId, event)}
         >
           <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
             {windowTitle(appId)}
@@ -139,7 +141,7 @@ export function WindowFrame({
           <div className="flex items-center gap-1.5">
             <button
               className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-line bg-surface/80 px-1.5 text-[10px] font-semibold text-ink transition hover:border-line-strong/40 hover:bg-surface"
-              onClick={() => onMinimize(appId)}
+              onClick={() => onMinimize(windowId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
               type="button"
@@ -148,7 +150,7 @@ export function WindowFrame({
             </button>
             <button
               className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[9px] font-semibold text-accent transition hover:border-accent/55 hover:bg-accent/20"
-              onClick={() => onToggleMaximize(appId)}
+              onClick={() => onToggleMaximize(windowId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
               type="button"
@@ -172,7 +174,7 @@ export function WindowFrame({
             </button>
             <button
               className="flex h-7 min-w-[2rem] items-center justify-center rounded-md border border-danger/35 bg-danger/10 px-1.5 text-[10px] font-semibold text-danger-ink transition hover:border-danger/55 hover:bg-danger/20"
-              onClick={() => void onClose(appId)}
+              onClick={() => void onClose(windowId)}
               onMouseDown={onStopWindowControlMouse}
               onPointerDown={onStopWindowControlPointer}
               type="button"

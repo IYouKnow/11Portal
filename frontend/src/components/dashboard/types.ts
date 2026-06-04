@@ -55,8 +55,13 @@ export type WindowState = {
 
 export type WindowMap = Record<AppID, WindowState>;
 
-export type DragState = {
+export type WindowInstance = WindowState & {
+  id: string;
   appId: AppID;
+};
+
+export type DragState = {
+  windowId: string;
   pointerId: number;
   offsetX: number;
   offsetY: number;
@@ -73,7 +78,7 @@ export type ResizeDirection =
   | "bottom-right";
 
 export type ResizeState = {
-  appId: AppID;
+  windowId: string;
   pointerId: number;
   direction: ResizeDirection;
   startX: number;

@@ -57,7 +57,7 @@ import type {
   ResizeState,
   WallpaperPresetId,
   WallpaperState,
-  WindowMap,
+  WindowInstance,
 } from "./dashboard/types";
 import { WindowFrame } from "./dashboard/WindowFrame";
 import {
@@ -66,6 +66,14 @@ import {
   writeWallpaperImage,
 } from "./dashboard/wallpaperStorage";
 import { useTheme } from "../theme-context";
+
+function createWindowInstanceId(appId: AppID) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${appId}-${crypto.randomUUID()}`;
+  }
+
+  return `${appId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function Dashboard({
   user,
@@ -78,11 +86,10 @@ export function Dashboard({
   onCreateUser,
 }: DashboardProps) {
   const { resolvedTheme } = useTheme();
-  const [activeApp, setActiveApp] = useState<AppID | null>(null);
-  const [windows, setWindows] = useState<WindowMap>(initialWindows);
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+  const [windows, setWindows] = useState<WindowInstance[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<"user" | "admin">("user");
@@ -127,6 +134,50 @@ export function Dashboard({
     height: 280,
   };
 
+  const activeWindow = useMemo(
+    () => windows.find((window) => window.id === activeWindowId) ?? null,
+    [activeWindowId, windows],
+  );
+  const activeApp = activeWindow?.appId ?? null;
+
+  const createWindow = (appId: AppID): WindowInstance => {
+    const template = initialWindows[appId];
+    return {
+      id: createWindowInstanceId(appId),
+      appId,
+      open: true,
+      minimized: false,
+      maximized: false,
+      snapped: null,
+      position: { ...template.position },
+      lastFloatingPosition: { ...template.lastFloatingPosition },
+      size: { ...template.size },
+      lastFloatingSize: { ...template.lastFloatingSize },
+      zIndex: nextZIndexRef.current++,
+    };
+  };
+
+  const focusWindow = (windowId: string) => {
+    setWindows((current) =>
+      current.map((window) =>
+        window.id === windowId
+          ? {
+              ...window,
+              zIndex: nextZIndexRef.current++,
+            }
+          : window,
+      ),
+    );
+    setActiveWindowId(windowId);
+  };
+
+  const getWindowsForApp = (appId: AppID) =>
+    windows.filter((window) => window.appId === appId);
+
+  const getTopWindowForApp = (appId: AppID) => {
+    return [...getWindowsForApp(appId)].sort((left, right) => right.zIndex - left.zIndex)[0] ?? null;
+  };
+
   const applyPresetWallpaper = (presetId: WallpaperPresetId) => {
     const preset = getWallpaperPreset(presetId);
     if (!preset) {
@@ -158,91 +209,87 @@ export function Dashboard({
     setWallpaperError(null);
   };
 
-  const isAppOpen = (appId: AppID) => windows[appId].open;
-  const isAppMinimized = (appId: AppID) => windows[appId].minimized;
-
-  const focusApp = (appId: AppID) => {
-    setWindows((current) => ({
-      ...current,
-      [appId]: {
-        ...current[appId],
-        zIndex: nextZIndexRef.current++,
-      },
-    }));
-    setActiveApp(appId);
+  const isAppOpen = (appId: AppID) => getWindowsForApp(appId).length > 0;
+  const isAppMinimized = (appId: AppID) => {
+    const openWindows = getWindowsForApp(appId);
+    return openWindows.length > 0 && openWindows.every((window) => window.minimized);
   };
 
   const openApp = (appId: AppID) => {
-    if (appId === "chromium") {
-      setIframeKey((value) => value + 1);
-    }
-
-    setWindows((current) => ({
-      ...current,
-      [appId]: {
-        ...current[appId],
-        open: true,
-        minimized: false,
-        zIndex: nextZIndexRef.current++,
-      },
-    }));
-    setActiveApp(appId);
+    const nextWindow = createWindow(appId);
+    setWindows((current) => [...current, nextWindow]);
+    setActiveWindowId(nextWindow.id);
   };
 
-  const restoreApp = (appId: AppID) => {
-    setWindows((current) => ({
-      ...current,
-      [appId]: {
-        ...current[appId],
-        minimized: false,
-        zIndex: nextZIndexRef.current++,
-      },
-    }));
-    setActiveApp(appId);
+  const restoreWindow = (windowId: string) => {
+    setWindows((current) =>
+      current.map((window) =>
+        window.id === windowId
+          ? {
+              ...window,
+              minimized: false,
+              zIndex: nextZIndexRef.current++,
+            }
+          : window,
+      ),
+    );
+    setActiveWindowId(windowId);
   };
 
-  const minimizeApp = (appId: AppID) => {
-    setWindows((current) => ({
-      ...current,
-      [appId]: {
-        ...current[appId],
-        minimized: true,
-      },
-    }));
-    setActiveApp((current) => (current === appId ? null : current));
+  const minimizeWindow = (windowId: string) => {
+    setWindows((current) =>
+      current.map((window) =>
+        window.id === windowId
+          ? {
+              ...window,
+              minimized: true,
+            }
+          : window,
+      ),
+    );
+    setActiveWindowId((current) => (current === windowId ? null : current));
   };
 
-  const closeApp = async (appId: AppID) => {
+  const closeWindow = async (windowId: string) => {
     if (isBusy) {
       return;
     }
 
     setIsBusy(true);
     try {
-      if (appId === "chromium") {
+      const targetWindow = windows.find((window) => window.id === windowId);
+      if (!targetWindow) {
+        return;
+      }
+
+      const remainingWindows = windows.filter((window) => window.id !== windowId);
+      const remainingWindowsForApp = remainingWindows.filter(
+        (window) => window.appId === targetWindow.appId,
+      );
+
+      if (targetWindow.appId === "chromium" && remainingWindowsForApp.length === 0) {
         await closeBrowserRuntime();
       }
 
-      if (appId === "terminal") {
+      if (targetWindow.appId === "terminal" && remainingWindowsForApp.length === 0) {
         const { items } = await listTerminalSessions();
         await Promise.allSettled(
           items.map((session) => closeTerminalSession(session.id)),
         );
       }
 
-      setWindows((current) => ({
-        ...current,
-        [appId]: {
-          ...current[appId],
-          open: false,
-          minimized: false,
-          maximized: false,
-          snapped: null,
-          position: current[appId].lastFloatingPosition,
-          size: current[appId].lastFloatingSize,
-        },
-      }));
-      setActiveApp((current) => (current === appId ? null : current));
+      setWindows(remainingWindows);
+      setActiveWindowId((current) => {
+        if (current !== windowId) {
+          return current;
+        }
+
+        const nextActive = [...remainingWindows]
+          .sort((left, right) => right.zIndex - left.zIndex)
+          [0];
+
+        return nextActive?.id ?? null;
+      });
     } finally {
       setIsBusy(false);
     }
@@ -253,50 +300,59 @@ export function Dashboard({
       return;
     }
 
-    if (!isAppOpen(appId)) {
+    const topWindow = getTopWindowForApp(appId);
+    if (!topWindow) {
       openApp(appId);
       return;
     }
 
-    if (isAppMinimized(appId)) {
-      restoreApp(appId);
+    if (topWindow.minimized) {
+      restoreWindow(topWindow.id);
       return;
     }
 
-    if (activeApp === appId) {
-      minimizeApp(appId);
+    if (activeWindowId === topWindow.id) {
+      minimizeWindow(topWindow.id);
       return;
     }
 
-    focusApp(appId);
+    focusWindow(topWindow.id);
   };
 
-  const toggleMaximize = (appId: AppID) => {
+  const launchApp = (appId: AppID) => {
+    openApp(appId);
+  };
+
+  const toggleMaximize = (windowId: string) => {
+    const targetWindow = windows.find((window) => window.id === windowId);
+    if (!targetWindow) {
+      return;
+    }
+
     setWindows((current) => {
-      const nextWindow = current[appId];
-      if (nextWindow.maximized) {
-        return {
-          ...current,
-          [appId]: {
-            ...nextWindow,
+      return current.map((window) => {
+        if (window.id !== windowId) {
+          return window;
+        }
+
+        if (window.maximized) {
+          return {
+            ...window,
             maximized: false,
             snapped: null,
-            position: nextWindow.lastFloatingPosition,
-          },
-        };
-      }
+            position: window.lastFloatingPosition,
+          };
+        }
 
-      return {
-        ...current,
-        [appId]: {
-          ...nextWindow,
+        return {
+          ...window,
           maximized: true,
           snapped: null,
-          lastFloatingPosition: nextWindow.position,
-        },
-      };
+          lastFloatingPosition: window.position,
+        };
+      });
     });
-    focusApp(appId);
+    focusWindow(windowId);
   };
 
   useEffect(() => {
@@ -512,7 +568,10 @@ export function Dashboard({
         const deltaY = event.clientY - resizeState.startY;
 
         setWindows((current) => {
-          const targetWindow = current[resizeState.appId];
+          const targetWindow = current.find((window) => window.id === resizeState.windowId);
+          if (!targetWindow) {
+            return current;
+          }
           if (targetWindow.maximized || targetWindow.snapped) {
             return current;
           }
@@ -565,17 +624,17 @@ export function Dashboard({
             nextY = Math.max(0, Math.min(resizeState.startPosition.y + deltaY, maxTop));
             nextHeight = resizeState.startSize.height + (resizeState.startPosition.y - nextY);
           }
-
-          return {
-            ...current,
-            [resizeState.appId]: {
-              ...targetWindow,
-              position: { x: nextX, y: nextY },
-              size: { width: nextWidth, height: nextHeight },
-              lastFloatingPosition: { x: nextX, y: nextY },
-              lastFloatingSize: { width: nextWidth, height: nextHeight },
-            },
-          };
+          return current.map((window) =>
+            window.id === resizeState.windowId
+              ? {
+                  ...window,
+                  position: { x: nextX, y: nextY },
+                  size: { width: nextWidth, height: nextHeight },
+                  lastFloatingPosition: { x: nextX, y: nextY },
+                  lastFloatingSize: { width: nextWidth, height: nextHeight },
+                }
+              : window,
+          );
         });
         return;
       }
@@ -594,7 +653,10 @@ export function Dashboard({
       setSnapPreview(detectSnapMode(event.clientX, event.clientY));
 
       setWindows((current) => {
-        const targetWindow = current[dragState.appId];
+        const targetWindow = current.find((window) => window.id === dragState.windowId);
+        if (!targetWindow) {
+          return current;
+        }
         if (targetWindow.maximized || targetWindow.snapped) {
           return current;
         }
@@ -603,16 +665,17 @@ export function Dashboard({
         const nextX = event.clientX - dragState.offsetX;
         const nextY = event.clientY - dragState.offsetY;
 
-        return {
-          ...current,
-          [dragState.appId]: {
-            ...targetWindow,
-            position: {
-              x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
-              y: Math.max(0, Math.min(nextY, window.innerHeight - 48)),
-            },
-          },
-        };
+        return current.map((windowInstance) =>
+          windowInstance.id === dragState.windowId
+            ? {
+                ...windowInstance,
+                position: {
+                  x: Math.max(-width + 120, Math.min(nextX, window.innerWidth - 120)),
+                  y: Math.max(0, Math.min(nextY, window.innerHeight - 48)),
+                },
+              }
+            : windowInstance,
+        );
       });
     };
 
@@ -634,38 +697,41 @@ export function Dashboard({
         const activePreview = detectSnapMode(event.clientX, event.clientY);
 
         if (activePreview === "maximize") {
-          return {
-            ...current,
-            [dragState.appId]: {
-              ...current[dragState.appId],
-              maximized: true,
-              snapped: null,
-              lastFloatingPosition: current[dragState.appId].position,
-            },
-          };
+          return current.map((window) =>
+            window.id === dragState.windowId
+              ? {
+                  ...window,
+                  maximized: true,
+                  snapped: null,
+                  lastFloatingPosition: window.position,
+                }
+              : window,
+          );
         }
 
         if (activePreview) {
-          return {
-            ...current,
-            [dragState.appId]: {
-              ...current[dragState.appId],
-              maximized: false,
-              snapped: activePreview,
-              lastFloatingPosition: current[dragState.appId].position,
-            },
-          };
+          return current.map((window) =>
+            window.id === dragState.windowId
+              ? {
+                  ...window,
+                  maximized: false,
+                  snapped: activePreview,
+                  lastFloatingPosition: window.position,
+                }
+              : window,
+          );
         }
 
-        return {
-          ...current,
-          [dragState.appId]: {
-            ...current[dragState.appId],
-            maximized: false,
-            snapped: null,
-            lastFloatingPosition: current[dragState.appId].position,
-          },
-        };
+        return current.map((window) =>
+          window.id === dragState.windowId
+            ? {
+                ...window,
+                maximized: false,
+                snapped: null,
+                lastFloatingPosition: window.position,
+              }
+            : window,
+        );
       });
       setSnapPreview(null);
     };
@@ -685,47 +751,46 @@ export function Dashboard({
     const clampWindowsToViewport = () => {
       setWindows((current) => {
         let changed = false;
-        const nextWindows = { ...current };
-
-        for (const app of apps) {
-          const windowState = current[app.id];
-          if (windowState.maximized || windowState.snapped) {
-            continue;
+        const nextWindows = current.map((windowInstance) => {
+          if (windowInstance.maximized || windowInstance.snapped) {
+            return windowInstance;
           }
 
           const nextWidth = Math.min(
-            Math.max(windowState.size.width, minWindowSize.width),
+            Math.max(windowInstance.size.width, minWindowSize.width),
             window.innerWidth,
           );
           const nextHeight = Math.min(
-            Math.max(windowState.size.height, minWindowSize.height),
+            Math.max(windowInstance.size.height, minWindowSize.height),
             window.innerHeight,
           );
           const nextX = Math.max(
             0,
-            Math.min(windowState.position.x, window.innerWidth - nextWidth),
+            Math.min(windowInstance.position.x, window.innerWidth - nextWidth),
           );
           const nextY = Math.max(
             0,
-            Math.min(windowState.position.y, window.innerHeight - nextHeight),
+            Math.min(windowInstance.position.y, window.innerHeight - nextHeight),
           );
 
           if (
-            nextWidth !== windowState.size.width ||
-            nextHeight !== windowState.size.height ||
-            nextX !== windowState.position.x ||
-            nextY !== windowState.position.y
+            nextWidth !== windowInstance.size.width ||
+            nextHeight !== windowInstance.size.height ||
+            nextX !== windowInstance.position.x ||
+            nextY !== windowInstance.position.y
           ) {
             changed = true;
-            nextWindows[app.id] = {
-              ...windowState,
+            return {
+              ...windowInstance,
               position: { x: nextX, y: nextY },
               lastFloatingPosition: { x: nextX, y: nextY },
               size: { width: nextWidth, height: nextHeight },
               lastFloatingSize: { width: nextWidth, height: nextHeight },
             };
           }
-        }
+
+          return windowInstance;
+        });
 
         return changed ? nextWindows : current;
       });
@@ -925,7 +990,7 @@ export function Dashboard({
   }, [wallpaper, wallpaperStorageKey]);
 
   const startDragging = (
-    appId: AppID,
+    windowId: string,
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     if (event.button !== 0) {
@@ -933,9 +998,12 @@ export function Dashboard({
     }
 
     event.preventDefault();
-    focusApp(appId);
+    focusWindow(windowId);
 
-    const appWindow = windows[appId];
+    const appWindow = windows.find((window) => window.id === windowId);
+    if (!appWindow) {
+      return;
+    }
     let nextPosition = appWindow.position;
     let offsetX = event.clientX - appWindow.position.x;
     let offsetY = event.clientY - appWindow.position.y;
@@ -977,38 +1045,41 @@ export function Dashboard({
         y: Math.max(0, Math.min(event.clientY - anchorY, window.innerHeight - restoredHeight)),
       };
 
-      setWindows((current) => ({
-        ...current,
-        [appId]: {
-          ...current[appId],
-          maximized: false,
-          snapped: null,
-          position: nextPosition,
-          lastFloatingPosition: nextPosition,
-          size: {
-            width: restoredWidth,
-            height: restoredHeight,
-          },
-        },
-      }));
+      setWindows((current) =>
+        current.map((window) =>
+          window.id === windowId
+            ? {
+                ...window,
+                maximized: false,
+                snapped: null,
+                position: nextPosition,
+                lastFloatingPosition: nextPosition,
+                size: {
+                  width: restoredWidth,
+                  height: restoredHeight,
+                },
+              }
+            : window,
+        ),
+      );
 
       offsetX = event.clientX - nextPosition.x;
       offsetY = event.clientY - nextPosition.y;
     }
 
     dragStateRef.current = {
-      appId,
+      windowId,
       pointerId: event.pointerId,
       offsetX,
       offsetY,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDraggingApp(appId);
+    setDraggingApp(appWindow.appId);
     setSnapPreview(detectSnapMode(event.clientX, event.clientY));
   };
 
   const startResizing = (
-    appId: AppID,
+    windowId: string,
     direction: ResizeDirection,
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
@@ -1018,15 +1089,18 @@ export function Dashboard({
 
     event.preventDefault();
     event.stopPropagation();
-    focusApp(appId);
+    focusWindow(windowId);
 
-    const appWindow = windows[appId];
+    const appWindow = windows.find((window) => window.id === windowId);
+    if (!appWindow) {
+      return;
+    }
     if (appWindow.maximized || appWindow.snapped) {
       return;
     }
 
     resizeStateRef.current = {
-      appId,
+      windowId,
       pointerId: event.pointerId,
       direction,
       startX: event.clientX,
@@ -1208,7 +1282,7 @@ export function Dashboard({
       return;
     }
 
-    await toggleApp(appId);
+    launchApp(appId);
   };
 
   const handleDesktopIconDoubleClick = async (appId: AppID) => {
@@ -1218,14 +1292,16 @@ export function Dashboard({
     }
 
     setSelectedDesktopApps([appId]);
-    await toggleApp(appId);
+    launchApp(appId);
   };
 
-  const renderWindowContent = (appId: AppID) => {
+  const renderWindowContent = (windowInstance: WindowInstance) => {
+    const { appId } = windowInstance;
+
     if (appId === "chromium") {
       return (
         <iframe
-          key={iframeKey}
+          key={windowInstance.id}
           className={`h-full w-full border-0 bg-canvas ${
             draggingApp === "chromium" ? "pointer-events-none" : ""
           }`}
@@ -1239,7 +1315,7 @@ export function Dashboard({
     if (appId === "terminal") {
       return (
         <TerminalPanel
-          active={windows.terminal.open && !windows.terminal.minimized}
+          active={activeWindowId === windowInstance.id && !windowInstance.minimized}
         />
       );
     }
@@ -1277,9 +1353,9 @@ export function Dashboard({
     );
   };
 
-  const visibleApps = apps
-    .filter((app) => windows[app.id].open && !windows[app.id].minimized)
-    .sort((left, right) => windows[left.id].zIndex - windows[right.id].zIndex);
+  const visibleWindows = [...windows]
+    .filter((windowInstance) => !windowInstance.minimized)
+    .sort((left, right) => left.zIndex - right.zIndex);
   const showDesktopGrid =
     wallpaper.mode === "preset" && wallpaper.presetId === DEFAULT_WALLPAPER;
   const showTopGlow = showDesktopGrid;
@@ -1322,14 +1398,11 @@ export function Dashboard({
 
         <div className={`relative flex flex-1 flex-col pt-3 ${showDock ? "pb-24" : "pb-6"}`}>
           <DesktopSurface
-            activeApp={activeApp}
             desktopAreaRef={desktopAreaRef}
             desktopIcons={desktopIcons}
             desktopLaunchMode={desktopLaunchMode}
             desktopSelection={desktopSelection}
             draggingDesktopIcon={draggingDesktopIcon}
-            isAppMinimized={isAppMinimized}
-            isAppOpen={isAppOpen}
             useLightLabels={!showDesktopGrid}
             onDesktopIconClick={handleDesktopIconClick}
             onDesktopIconDoubleClick={handleDesktopIconDoubleClick}
@@ -1359,22 +1432,23 @@ export function Dashboard({
           </div>
         ) : null}
 
-        {visibleApps.map((app) => (
+        {visibleWindows.map((windowInstance) => (
           <WindowFrame
-            key={app.id}
-            activeApp={activeApp}
-            appId={app.id}
-            onClose={closeApp}
-            onFocus={focusApp}
-            onMinimize={minimizeApp}
+            key={windowInstance.id}
+            activeWindowId={activeWindowId}
+            appId={windowInstance.appId}
+            windowId={windowInstance.id}
+            onClose={closeWindow}
+            onFocus={focusWindow}
+            onMinimize={minimizeWindow}
             onStartResizing={startResizing}
             onStartDragging={startDragging}
             onStopWindowControlMouse={stopWindowControlMouse}
             onStopWindowControlPointer={stopWindowControlPointer}
             onToggleMaximize={toggleMaximize}
-            windowState={windows[app.id]}
+            windowState={windowInstance}
           >
-            {renderWindowContent(app.id)}
+            {renderWindowContent(windowInstance)}
           </WindowFrame>
         ))}
       </div>
