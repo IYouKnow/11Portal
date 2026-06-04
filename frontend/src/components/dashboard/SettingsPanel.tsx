@@ -105,7 +105,9 @@ export function SettingsPanel({
                   <div>
                     <p className="text-sm font-medium text-ink">Dock</p>
                     <p className="mt-1 text-xs text-muted">
-                      {showDock ? "Visible on desktop" : "Hidden from desktop"}
+                      {showDock
+                        ? "Always visible on desktop"
+                        : "Auto-hides until you move to the bottom edge"}
                     </p>
                   </div>
                   <PanelBottom className="h-4 w-4 text-muted" strokeWidth={1.9} />
@@ -258,10 +260,10 @@ export function SettingsPanel({
             <SectionLabel
               eyebrow="Desktop"
               title="Interaction"
-              description="Choose how apps open from the desktop and whether the dock should stay visible."
+              description="Choose how apps open from the desktop and whether the dock stays visible or auto-hides."
             />
 
-            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_320px]">
+            <div className="mt-6 grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label
                   className={`flex cursor-pointer items-start gap-3 rounded-[1.4rem] border p-4 transition ${
@@ -315,19 +317,19 @@ export function SettingsPanel({
               </div>
 
               <div className="rounded-[1.4rem] border border-line bg-surface/72 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <PanelBottom className="h-4 w-4 text-muted" strokeWidth={1.9} />
-                      <h3 className="text-sm font-medium text-ink">Dock visibility</h3>
+                      <PanelBottom className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.9} />
+                      <h3 className="text-sm font-medium text-ink">Dock behavior</h3>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-muted">
-                      Keep the dock available for quick app switching, or hide it for a cleaner desktop.
+                    <p className="mt-2 max-w-2xl text-xs leading-5 text-muted">
+                      Keep the dock always visible, or let it auto-hide and reappear when you move the pointer to the bottom.
                     </p>
                   </div>
-                  <label className="inline-flex cursor-pointer items-center gap-3 rounded-full border border-line bg-panel px-3 py-2 text-sm text-ink transition hover:border-line-strong/40 hover:bg-surface">
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-3 rounded-full border border-line bg-panel px-3 py-2 text-sm text-ink transition hover:border-line-strong/40 hover:bg-surface">
                     <span className="text-xs uppercase tracking-[0.22em] text-muted">
-                      {showDock ? "On" : "Off"}
+                      {showDock ? "Visible" : "Auto-hide"}
                     </span>
                     <input
                       checked={showDock}

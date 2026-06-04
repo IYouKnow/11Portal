@@ -6,6 +6,7 @@ type TaskbarProps = {
   activeApp: AppID | null;
   isAppMinimized: (appId: AppID) => boolean;
   isAppOpen: (appId: AppID) => boolean;
+  visible: boolean;
   onToggleApp: (appId: AppID) => void | Promise<void>;
 };
 
@@ -13,11 +14,20 @@ export function Taskbar({
   activeApp,
   isAppMinimized,
   isAppOpen,
+  visible,
   onToggleApp,
 }: TaskbarProps) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-slate-300/85 bg-white/72 px-2.5 py-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-window/82 dark:shadow-[0_14px_34px_rgba(0,0,0,0.32)]">
+    <div
+      className={`pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4 transition-[opacity,transform] duration-200 ${
+        visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+      }`}
+    >
+      <div
+        className={`flex items-center gap-1.5 rounded-2xl border border-slate-300/85 bg-white/72 px-2.5 py-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur-xl transition dark:border-white/10 dark:bg-window/82 dark:shadow-[0_14px_34px_rgba(0,0,0,0.32)] ${
+          visible ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
         {apps.map((app) => (
           (() => {
             if (app.id === "shortcutManager") {

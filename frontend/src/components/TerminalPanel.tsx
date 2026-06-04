@@ -13,8 +13,11 @@ import { useTheme } from "../theme-context";
 
 type TerminalPanelProps = {
   active: boolean;
-  refreshToken?: number;
-  preferredSessionId?: string | null;
+  launchRequest?: {
+    id: number;
+    command: string;
+  } | null;
+  onLaunchHandled?: () => void;
 };
 
 type SessionRuntime = {
@@ -27,14 +30,15 @@ type SessionHostMap = Record<string, HTMLDivElement | null>;
 
 export const TerminalPanel = memo(function TerminalPanel({
   active,
-  refreshToken = 0,
-  preferredSessionId = null,
+  launchRequest = null,
+  onLaunchHandled,
 }: TerminalPanelProps) {
   const { resolvedTheme } = useTheme();
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const handledLaunchRequestId = useRef<number | null>(null);
   const hostsRef = useRef<SessionHostMap>({});
   const runtimesRef = useRef<Map<string, SessionRuntime>>(new Map());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -45,13 +49,6 @@ export const TerminalPanel = memo(function TerminalPanel({
         const response = await listTerminalSessions();
         setSessions(response.items);
         setActiveSessionId((current) => {
-          if (
-            preferredSessionId &&
-            response.items.some((session) => session.id === preferredSessionId)
-          ) {
-            return preferredSessionId;
-          }
-
           return current ?? response.items[0]?.id ?? null;
         });
         setError(null);
@@ -65,7 +62,7 @@ export const TerminalPanel = memo(function TerminalPanel({
     };
 
     void loadSessions();
-  }, [preferredSessionId, refreshToken]);
+  }, [launchRequest?.id]);
 
   useEffect(() => {
     if (!sessions.some((session) => session.id === activeSessionId)) {
@@ -74,12 +71,53 @@ export const TerminalPanel = memo(function TerminalPanel({
   }, [activeSessionId, sessions]);
 
   useEffect(() => {
-    if (preferredSessionId || !active || sessions.length > 0 || isCreatingSession) {
+    if (
+      launchRequest ||
+      !active ||
+      sessions.length > 0 ||
+      isCreatingSession
+    ) {
       return;
     }
 
     void handleCreateSession();
-  }, [active, isCreatingSession, preferredSessionId, sessions.length]);
+  }, [active, isCreatingSession, launchRequest, sessions.length]);
+
+  useEffect(() => {
+    if (!active || !launchRequest) {
+      return;
+    }
+
+    if (handledLaunchRequestId.current === launchRequest.id || isCreatingSession) {
+      return;
+    }
+
+    handledLaunchRequestId.current = launchRequest.id;
+
+    const launchTerminalSession = async () => {
+      setIsCreatingSession(true);
+      try {
+        const response = await createTerminalSession({
+          type: "local",
+          command: launchRequest.command,
+        });
+        setSessions((current) => [...current, response.item]);
+        setActiveSessionId(response.item.id);
+        setError(null);
+      } catch (createError) {
+        setError(
+          createError instanceof Error
+            ? createError.message
+            : "Unable to create a terminal session.",
+        );
+      } finally {
+        setIsCreatingSession(false);
+        onLaunchHandled?.();
+      }
+    };
+
+    void launchTerminalSession();
+  }, [active, isCreatingSession, launchRequest, onLaunchHandled]);
 
   useEffect(() => {
     for (const session of sessions) {

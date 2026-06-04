@@ -1,13 +1,17 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link2, TerminalSquare } from "lucide-react";
+import type { ShortcutDefinition } from "./dashboard/types";
 
 type ShortcutPanelProps = {
-  onCreateShortcut: (payload: {
+  editingShortcut: ShortcutDefinition | null;
+  onSaveShortcut: (payload: {
+    shortcutId: string | null;
     name: string;
     kind: "browser" | "terminal";
     url: string;
     iconUrl: string;
   }) => void;
+  onCancelEdit: () => void;
 };
 
 function normalizeUrl(rawValue: string) {
@@ -27,12 +31,33 @@ function normalizeUrl(rawValue: string) {
   }
 }
 
-export function ShortcutPanel({ onCreateShortcut }: ShortcutPanelProps) {
+export function ShortcutPanel({
+  editingShortcut,
+  onSaveShortcut,
+  onCancelEdit,
+}: ShortcutPanelProps) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"browser" | "terminal">("browser");
   const [url, setUrl] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editingShortcut) {
+      setName("");
+      setKind("browser");
+      setUrl("");
+      setIconUrl("");
+      setError(null);
+      return;
+    }
+
+    setName(editingShortcut.name);
+    setKind(editingShortcut.kind);
+    setUrl(editingShortcut.url);
+    setIconUrl(editingShortcut.iconUrl);
+    setError(null);
+  }, [editingShortcut]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,17 +71,20 @@ export function ShortcutPanel({ onCreateShortcut }: ShortcutPanelProps) {
 
     const normalizedIconUrl = normalizeUrl(iconUrl);
 
-    onCreateShortcut({
+    onSaveShortcut({
+      shortcutId: editingShortcut?.id ?? null,
       name: name.trim() || (kind === "terminal" ? "Terminal shortcut" : "Browser shortcut"),
       kind,
       url: shortcutValue,
       iconUrl: normalizedIconUrl,
     });
 
-    setName("");
-    setKind("browser");
-    setUrl("");
-    setIconUrl("");
+    if (!editingShortcut) {
+      setName("");
+      setKind("browser");
+      setUrl("");
+      setIconUrl("");
+    }
     setError(null);
   };
 
@@ -64,7 +92,9 @@ export function ShortcutPanel({ onCreateShortcut }: ShortcutPanelProps) {
     <div className="flex h-full min-h-0 flex-col bg-panel">
       <div className="border-b border-line bg-[linear-gradient(180deg,rgb(var(--color-panel))_0%,rgb(var(--color-surface))_100%)] px-4 py-3.5">
         <p className="text-[10px] uppercase tracking-[0.3em] text-muted">Shortcut</p>
-        <h2 className="mt-1.5 text-lg font-medium text-ink">Create a launcher</h2>
+        <h2 className="mt-1.5 text-lg font-medium text-ink">
+          {editingShortcut ? "Edit launcher" : "Create a launcher"}
+        </h2>
         <p className="mt-1.5 max-w-2xl text-xs leading-5 text-muted">
           Pick browser or terminal, then paste the link or command. Add an icon
           image URL if you want, or leave it blank to use the default icon.
@@ -109,7 +139,7 @@ export function ShortcutPanel({ onCreateShortcut }: ShortcutPanelProps) {
                   const Icon = choice.icon;
 
                   return (
-                    <button
+              <button
                       key={choice.id}
                       className={`flex items-start gap-2 rounded-[1.1rem] border p-3 text-left transition ${
                         isSelected
@@ -163,8 +193,18 @@ export function ShortcutPanel({ onCreateShortcut }: ShortcutPanelProps) {
               className="w-full rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent transition hover:bg-accent/20"
               type="submit"
             >
-              Create shortcut
+              {editingShortcut ? "Save shortcut" : "Create shortcut"}
             </button>
+
+            {editingShortcut ? (
+              <button
+                className="w-full rounded-xl border border-line bg-surface/70 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-surface"
+                onClick={onCancelEdit}
+                type="button"
+              >
+                Cancel editing
+              </button>
+            ) : null}
 
             {error ? (
               <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger-ink">

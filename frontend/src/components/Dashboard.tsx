@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import {
-  createTerminalSession,
   closeBrowserRuntime,
   closeTerminalSession,
   listTerminalSessions,
@@ -117,9 +116,17 @@ export function Dashboard({
   const [desktopLaunchMode, setDesktopLaunchMode] =
     useState<DesktopLaunchMode>("double");
   const [showDock, setShowDock] = useState(true);
-  const [terminalRefreshToken, setTerminalRefreshToken] = useState(0);
-  const [preferredTerminalSessionId, setPreferredTerminalSessionId] =
-    useState<string | null>(null);
+  const [dockPeekVisible, setDockPeekVisible] = useState(true);
+  const [pendingTerminalLaunch, setPendingTerminalLaunch] = useState<{
+    id: number;
+    command: string;
+  } | null>(null);
+  const [editingShortcutId, setEditingShortcutId] = useState<string | null>(null);
+  const [shortcutContextMenu, setShortcutContextMenu] = useState<{
+    shortcutId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [selectedDesktopApps, setSelectedDesktopApps] = useState<string[]>([]);
   const [desktopSelection, setDesktopSelection] =
     useState<DesktopSelectionState>(null);
@@ -130,6 +137,7 @@ export function Dashboard({
   const resizeStateRef = useRef<ResizeState>(null);
   const iconDragStateRef = useRef<IconDragState>(null);
   const suppressIconClickRef = useRef<string | null>(null);
+  const shortcutContextMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopIconsRef = useRef<IconPositionMap>(initialDesktopIcons);
   const desktopAreaRef = useRef<HTMLDivElement | null>(null);
   const nextZIndexRef = useRef(4);
@@ -156,6 +164,7 @@ export function Dashboard({
     [activeWindowId, windows],
   );
   const activeApp = activeWindow?.appId ?? null;
+  const isDockVisible = showDock || dockPeekVisible;
   const desktopItemIds = useMemo(
     () => [
       ...apps
@@ -168,6 +177,10 @@ export function Dashboard({
   const shortcutById = useMemo(() => {
     return new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut] as const));
   }, [shortcuts]);
+  const editingShortcut = useMemo(
+    () => shortcuts.find((shortcut) => shortcut.id === editingShortcutId) ?? null,
+    [editingShortcutId, shortcuts],
+  );
 
   const createWindow = (appId: AppID): WindowInstance => {
     const template = initialWindows[appId];
@@ -309,17 +322,11 @@ export function Dashboard({
         return;
       }
 
-      try {
-        const response = await createTerminalSession({
-          type: "local",
-          command,
-        });
-        setPreferredTerminalSessionId(response.item.id);
-        setTerminalRefreshToken((current) => current + 1);
-        ensureAppVisible("terminal");
-      } catch {
-        // Ignore terminal shortcut launch failures quietly for now.
-      }
+      setPendingTerminalLaunch({
+        id: Date.now(),
+        command,
+      });
+      ensureAppVisible("terminal");
       return;
     }
 
@@ -327,6 +334,20 @@ export function Dashboard({
     if (normalizedUrl) {
       window.open(normalizedUrl, "_blank", "noreferrer");
     }
+  };
+
+  const openShortcutEditor = (shortcutId: string) => {
+    setEditingShortcutId(shortcutId);
+    setShortcutContextMenu(null);
+    ensureAppVisible("shortcutManager");
+  };
+
+  const deleteShortcut = (shortcutId: string) => {
+    setShortcuts((current) => current.filter((shortcut) => shortcut.id !== shortcutId));
+    setSelectedDesktopApps((current) => current.filter((id) => id !== shortcutId));
+    setShortcutContextMenu(null);
+
+    setEditingShortcutId((current) => (current === shortcutId ? null : current));
   };
 
   const placeNewShortcut = (shortcutId: string) => {
@@ -727,11 +748,100 @@ export function Dashboard({
     const raw = window.localStorage.getItem(showDockStorageKey);
     if (raw === "false") {
       setShowDock(false);
+      setDockPeekVisible(false);
       return;
     }
 
     setShowDock(true);
+    setDockPeekVisible(true);
   }, [showDockStorageKey]);
+
+  useEffect(() => {
+    if (showDock) {
+      setDockPeekVisible(true);
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let hideTimeout: number | null = null;
+    const revealThreshold = 28;
+
+    const hideDock = () => {
+      if (hideTimeout !== null) {
+        window.clearTimeout(hideTimeout);
+      }
+      hideTimeout = window.setTimeout(() => {
+        setDockPeekVisible(false);
+      }, 120);
+    };
+
+    const revealDock = () => {
+      if (hideTimeout !== null) {
+        window.clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+
+      setDockPeekVisible(true);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const viewportHeight = window.innerHeight;
+      const distanceFromBottom = viewportHeight - event.clientY;
+
+      if (distanceFromBottom <= revealThreshold) {
+        revealDock();
+        return;
+      }
+
+      hideDock();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerdown", handlePointerMove);
+
+    return () => {
+      if (hideTimeout !== null) {
+        window.clearTimeout(hideTimeout);
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerdown", handlePointerMove);
+    };
+  }, [showDock]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        shortcutContextMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setShortcutContextMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShortcutContextMenu(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1349,6 +1459,7 @@ export function Dashboard({
   };
 
   const handleCreateShortcut = (payload: {
+    shortcutId: string | null;
     name: string;
     kind: "browser" | "terminal";
     url: string;
@@ -1363,14 +1474,32 @@ export function Dashboard({
     }
 
     const normalizedIconUrl = normalizeIconUrl(payload.iconUrl);
-    if (!normalizedIconUrl) {
+    const trimmedName = payload.name.trim();
+
+    if (payload.shortcutId) {
+      setShortcuts((current) =>
+        current.map((shortcut) =>
+          shortcut.id === payload.shortcutId
+            ? {
+                ...shortcut,
+                name: trimmedName,
+                label: trimmedName,
+                url: shortcutValue,
+                iconUrl: normalizedIconUrl,
+                kind: payload.kind,
+              }
+            : shortcut,
+        ),
+      );
+      setEditingShortcutId(null);
+      setShortcutContextMenu(null);
       return;
     }
 
     const nextShortcut: ShortcutDefinition = {
       id: createShortcutId(),
-      name: payload.name.trim(),
-      label: payload.name.trim(),
+      name: trimmedName,
+      label: trimmedName,
       url: shortcutValue,
       iconUrl: normalizedIconUrl,
       kind: payload.kind,
@@ -1572,8 +1701,8 @@ export function Dashboard({
       return (
         <TerminalPanel
           active={activeWindowId === windowInstance.id && !windowInstance.minimized}
-          preferredSessionId={preferredTerminalSessionId}
-          refreshToken={terminalRefreshToken}
+          launchRequest={pendingTerminalLaunch}
+          onLaunchHandled={() => setPendingTerminalLaunch(null)}
         />
       );
     }
@@ -1597,7 +1726,11 @@ export function Dashboard({
 
     if (appId === "shortcutManager") {
       return (
-        <ShortcutPanel onCreateShortcut={handleCreateShortcut} />
+        <ShortcutPanel
+          editingShortcut={editingShortcut}
+          onCancelEdit={() => setEditingShortcutId(null)}
+          onSaveShortcut={handleCreateShortcut}
+        />
       );
     }
 
@@ -1677,18 +1810,56 @@ export function Dashboard({
             onStartDesktopIconDrag={startDesktopIconDrag}
             onShortcutClick={handleDesktopItemClick}
             onShortcutDoubleClick={handleDesktopItemDoubleClick}
+            onShortcutContextMenu={(shortcutId, x, y) => {
+              const menuWidth = 192;
+              const menuHeight = 92;
+              const clampedX = Math.max(12, Math.min(x, window.innerWidth - menuWidth - 12));
+              const clampedY = Math.max(12, Math.min(y, window.innerHeight - menuHeight - 12));
+
+              setShortcutContextMenu({
+                shortcutId,
+                x: clampedX,
+                y: clampedY,
+              });
+            }}
             onStartShortcutDrag={startDesktopIconDrag}
             selectedDesktopItems={selectedDesktopApps}
           />
 
-          {showDock ? (
-            <Taskbar
-              activeApp={activeApp}
-              isAppMinimized={isAppMinimized}
-              isAppOpen={isAppOpen}
-              onToggleApp={toggleApp}
-            />
+          {shortcutContextMenu ? (
+            <div
+              ref={shortcutContextMenuRef}
+              className="fixed z-[60] w-48 overflow-hidden rounded-2xl border border-line bg-panel/95 p-1.5 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl"
+              style={{
+                left: shortcutContextMenu.x,
+                top: shortcutContextMenu.y,
+              }}
+              role="menu"
+            >
+              <button
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-ink transition hover:bg-surface"
+                onClick={() => openShortcutEditor(shortcutContextMenu.shortcutId)}
+                type="button"
+              >
+                Edit shortcut
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-danger transition hover:bg-danger/10"
+                onClick={() => deleteShortcut(shortcutContextMenu.shortcutId)}
+                type="button"
+              >
+                Delete shortcut
+              </button>
+            </div>
           ) : null}
+
+          <Taskbar
+            activeApp={activeApp}
+            isAppMinimized={isAppMinimized}
+            isAppOpen={isAppOpen}
+            onToggleApp={toggleApp}
+            visible={isDockVisible}
+          />
         </div>
 
         {draggingApp && snapPreview ? (

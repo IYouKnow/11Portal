@@ -29,6 +29,11 @@ type DesktopSurfaceProps = {
   ) => void;
   onShortcutClick: (shortcutId: string) => void | Promise<void>;
   onShortcutDoubleClick: (shortcutId: string) => void | Promise<void>;
+  onShortcutContextMenu: (
+    shortcutId: string,
+    x: number,
+    y: number,
+  ) => void;
   onStartShortcutDrag: (
     shortcutId: string,
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -52,6 +57,7 @@ export function DesktopSurface({
   onStartDesktopIconDrag,
   onShortcutClick,
   onShortcutDoubleClick,
+  onShortcutContextMenu,
   onStartShortcutDrag,
   selectedDesktopItems,
 }: DesktopSurfaceProps) {
@@ -132,6 +138,10 @@ export function DesktopSurface({
               ? () => void onShortcutDoubleClick(shortcut.id)
               : undefined
           }
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onShortcutContextMenu(shortcut.id, event.clientX, event.clientY);
+          }}
           onPointerDown={(event) => onStartShortcutDrag(shortcut.id, event)}
           style={{
             left: desktopIcons[shortcut.id]?.x ?? 0,
