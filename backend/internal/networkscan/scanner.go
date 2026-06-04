@@ -2,11 +2,14 @@ package networkscan
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -127,7 +130,7 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 	case <-time.After(120 * time.Millisecond):
 	}
 
-	arpEntries, _ := readARPTable()
+	arpEntries := collectARPEntries(ctx)
 	results := make([]Result, 0, len(alive))
 	for _, ip := range targetIPs {
 		if _, ok := alive[ip]; !ok {
@@ -155,6 +158,17 @@ func Scan(ctx context.Context, opts ScanOptions) ([]Result, Summary, error) {
 		SkippedCIDRs: skipped,
 		TotalIPs:     len(targetIPs),
 	}, nil
+}
+
+func collectARPEntries(ctx context.Context) map[string]string {
+	entries, _ := readARPTable()
+	if hostEntries, err := readHostARPTable(ctx); err == nil {
+		for ip, mac := range hostEntries {
+			entries[ip] = mac
+		}
+	}
+
+	return entries
 }
 
 func probeHost(ctx context.Context, dialer net.Dialer, ip string, ports []string) bool {
@@ -368,7 +382,37 @@ func readARPTable() (map[string]string, error) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	return parseARPTable(file)
+}
+
+func readHostARPTable(ctx context.Context) (map[string]string, error) {
+	command := exec.CommandContext(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"--network",
+		"host",
+		"--entrypoint",
+		"cat",
+		"alpine:3.20",
+		"/proc/net/arp",
+	)
+
+	output, err := command.Output()
+	if err != nil {
+		return map[string]string{}, err
+	}
+
+	return parseARPTable(bytes.NewReader(output))
+}
+
+func parseARPTable(reader io.Reader) (map[string]string, error) {
+	scanner := bufio.NewScanner(reader)
+	return parseARPTableScanner(scanner)
+}
+
+func parseARPTableScanner(scanner *bufio.Scanner) (map[string]string, error) {
 	entries := map[string]string{}
 	line := 0
 	for scanner.Scan() {

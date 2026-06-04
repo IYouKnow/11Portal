@@ -20,6 +20,10 @@ export function Taskbar({
   visible,
   onToggleApp,
 }: TaskbarProps) {
+  const tooltipStyle = {
+    color: resolvedTheme === "light" ? "#000000" : "#ffffff",
+  } as const;
+
   return (
     <div
       className={`pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4 transition-[opacity,transform] duration-200 ${
@@ -63,7 +67,10 @@ export function Taskbar({
                     }
                     type="button"
                   >
-                    <span className="pointer-events-none absolute -top-12 left-1/2 whitespace-nowrap rounded-md border border-black/10 bg-slate-900/92 px-2 py-1 text-[11px] text-white opacity-0 shadow-soft transition duration-150 -translate-x-1/2 group-hover:-translate-x-1/2 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94">
+                    <span
+                      className="pointer-events-none absolute -top-12 left-1/2 whitespace-nowrap rounded-md border border-black/10 bg-slate-900/92 px-2 py-1 text-[11px] text-black opacity-0 shadow-soft transition duration-150 -translate-x-1/2 group-hover:-translate-x-1/2 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94 dark:text-white"
+                      style={tooltipStyle}
+                    >
                       {app.label}
                     </span>
                     <span
@@ -129,7 +136,10 @@ export function Taskbar({
                 }
                 type="button"
               >
-                <span className="pointer-events-none absolute -top-12 left-1/2 whitespace-nowrap rounded-md border border-black/10 bg-slate-900/92 px-2 py-1 text-[11px] text-white opacity-0 shadow-soft transition duration-150 -translate-x-1/2 group-hover:-translate-x-1/2 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94">
+                <span
+                  className="pointer-events-none absolute -top-12 left-1/2 whitespace-nowrap rounded-md border border-black/10 bg-slate-900/92 px-2 py-1 text-[11px] text-black opacity-0 shadow-soft transition duration-150 -translate-x-1/2 group-hover:-translate-x-1/2 group-hover:-translate-y-0.5 group-hover:opacity-100 dark:border-white/10 dark:bg-window/94 dark:text-white"
+                  style={tooltipStyle}
+                >
                   {app.label}
                 </span>
                 <span

@@ -1756,6 +1756,7 @@ export function Dashboard({
   const showDesktopGrid =
     wallpaper.mode === "preset" && wallpaper.presetId === DEFAULT_WALLPAPER;
   const showTopGlow = showDesktopGrid;
+  const showBottomVignette = resolvedTheme === "dark";
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-canvas text-ink">
@@ -1779,10 +1780,12 @@ export function Dashboard({
           style={{ background: "var(--app-top-glow)" }}
         />
       ) : null}
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-56"
-        style={{ background: "var(--app-bottom-vignette)" }}
-      />
+      {showBottomVignette ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-56"
+          style={{ background: "var(--app-bottom-vignette)" }}
+        />
+      ) : null}
 
       <div className="relative flex min-h-screen flex-col">
         <DashboardHeader
