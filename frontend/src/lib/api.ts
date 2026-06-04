@@ -59,6 +59,15 @@ export type RemoteDesktopProfile = {
   createdAt: string;
 };
 
+export type Note = {
+  id: number;
+  userId: number;
+  title: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TerminalSession = {
   id: string;
   type: "local" | "ssh";
@@ -210,5 +219,32 @@ export async function scanNetwork(cidrs: string[] = []) {
   return request<NetworkScanResponse>("/api/v1/network/scan", {
     method: "POST",
     body: JSON.stringify({ cidrs }),
+  });
+}
+
+export async function listNotes() {
+  return request<{ items: Note[] }>("/api/v1/notes");
+}
+
+export async function createNote(payload: { title?: string; text?: string } = {}) {
+  return request<{ item: Note }>("/api/v1/notes", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateNote(
+  noteId: number,
+  payload: { title?: string; text?: string },
+) {
+  return request<{ item: Note }>(`/api/v1/notes/${noteId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteNote(noteId: number) {
+  return request<{ ok: boolean }>(`/api/v1/notes/${noteId}`, {
+    method: "DELETE",
   });
 }

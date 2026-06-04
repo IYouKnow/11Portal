@@ -45,6 +45,15 @@ type RemoteDesktopProfile struct {
 	CreatedAt             time.Time `json:"createdAt"`
 }
 
+type Note struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"userId"`
+	Title     string    `json:"title"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 type Session struct {
 	Token     string
 	UserID    int64
@@ -64,6 +73,16 @@ type CreateRemoteDesktopProfileInput struct {
 	Domain     string
 	Username   string
 	IgnoreCert bool
+}
+
+type CreateNoteInput struct {
+	Title string
+	Text  string
+}
+
+type UpdateNoteInput struct {
+	Title string
+	Text  string
 }
 
 func New(db *sql.DB) *Store {
@@ -123,6 +142,15 @@ func (s *Store) migrate() error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS notes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			text TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
 	}
 
 	for _, statement := range statements {
@@ -157,6 +185,18 @@ func (s *Store) migrate() error {
 
 	if _, err := s.db.Exec(`UPDATE remote_desktop_profiles SET domain = '' WHERE domain IS NULL`); err != nil {
 		return fmt.Errorf("migrate backfill remote desktop domain: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE notes ADD COLUMN title TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add note title: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE notes ADD COLUMN text TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add note text: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE notes ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return fmt.Errorf("migrate add note updated_at: %w", err)
 	}
 
 	return nil
@@ -512,6 +552,135 @@ func (s *Store) UpdateRemoteDesktopProfileConnectionID(ctx context.Context, user
 		userID,
 	)
 	return err
+}
+
+func (s *Store) ListNotes(ctx context.Context, userID int64) ([]Note, error) {
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, user_id, title, text, created_at, updated_at
+		FROM notes
+		WHERE user_id = ?
+		ORDER BY datetime(updated_at) DESC, id DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]Note, 0)
+	for rows.Next() {
+		var item Note
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.Title,
+			&item.Text,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func (s *Store) CreateNote(ctx context.Context, userID int64, input CreateNoteInput) (*Note, error) {
+	now := time.Now().UTC()
+	title := strings.TrimSpace(input.Title)
+	text := input.Text
+
+	result, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO notes (user_id, title, text, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)`,
+		userID,
+		title,
+		text,
+		now,
+		now,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetNoteByID(ctx, userID, id)
+}
+
+func (s *Store) GetNoteByID(ctx context.Context, userID, noteID int64) (*Note, error) {
+	var item Note
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, user_id, title, text, created_at, updated_at
+		FROM notes
+		WHERE id = ? AND user_id = ?
+		LIMIT 1`,
+		noteID,
+		userID,
+	).Scan(&item.ID, &item.UserID, &item.Title, &item.Text, &item.CreatedAt, &item.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &item, nil
+}
+
+func (s *Store) UpdateNote(ctx context.Context, userID, noteID int64, input UpdateNoteInput) (*Note, error) {
+	title := strings.TrimSpace(input.Title)
+	text := input.Text
+	now := time.Now().UTC()
+
+	result, err := s.db.ExecContext(
+		ctx,
+		`UPDATE notes
+		SET title = ?, text = ?, updated_at = ?
+		WHERE id = ? AND user_id = ?`,
+		title,
+		text,
+		now,
+		noteID,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rowsAffected == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return s.GetNoteByID(ctx, userID, noteID)
+}
+
+func (s *Store) DeleteNote(ctx context.Context, userID, noteID int64) (bool, error) {
+	result, err := s.db.ExecContext(
+		ctx,
+		`DELETE FROM notes WHERE id = ? AND user_id = ?`,
+		noteID,
+		userID,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
 }
 
 func normalizeRole(role string) string {
