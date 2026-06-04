@@ -1789,7 +1789,6 @@ export function Dashboard({
 
       <div className="relative flex min-h-screen flex-col">
         <DashboardHeader
-          activeWorkspace={activeWorkspace}
           isAdmin={isAdmin}
           onLogout={() => void onLogout()}
           onRefresh={() => void onRefresh()}

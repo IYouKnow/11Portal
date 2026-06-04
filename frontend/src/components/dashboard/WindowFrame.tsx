@@ -57,31 +57,31 @@ export function WindowFrame({
     direction: ResizeDirection;
     className: string;
   }> = [
-    { direction: "top", className: "left-3 right-3 top-0 h-1 cursor-ns-resize" },
+    { direction: "top", className: "left-3 right-3 top-0 h-3 cursor-ns-resize" },
     {
       direction: "right",
-      className: "bottom-3 right-0 top-3 w-1 cursor-ew-resize",
+      className: "bottom-3 right-0 top-3 w-3 cursor-ew-resize",
     },
     {
       direction: "bottom",
-      className: "bottom-0 left-3 right-3 h-1 cursor-ns-resize",
+      className: "bottom-0 left-3 right-3 h-3 cursor-ns-resize",
     },
-    { direction: "left", className: "bottom-3 left-0 top-3 w-1 cursor-ew-resize" },
+    { direction: "left", className: "bottom-3 left-0 top-3 w-3 cursor-ew-resize" },
     {
       direction: "top-left",
-      className: "left-0 top-0 h-3 w-3 cursor-nwse-resize",
+      className: "left-0 top-0 h-4 w-4 cursor-nwse-resize",
     },
     {
       direction: "top-right",
-      className: "right-0 top-0 h-3 w-3 cursor-nesw-resize",
+      className: "right-0 top-0 h-4 w-4 cursor-nesw-resize",
     },
     {
       direction: "bottom-left",
-      className: "bottom-0 left-0 h-3 w-3 cursor-nesw-resize",
+      className: "bottom-0 left-0 h-4 w-4 cursor-nesw-resize",
     },
     {
       direction: "bottom-right",
-      className: "bottom-0 right-0 h-3 w-3 cursor-nwse-resize",
+      className: "bottom-0 right-0 h-4 w-4 cursor-nwse-resize",
     },
   ];
 
@@ -113,6 +113,19 @@ export function WindowFrame({
           : snappedBounds?.height ?? `${windowState.size.height}px`,
       }}
     >
+      {!isFramedToViewport
+        ? resizeHandles.map((handle) => (
+            <div
+              key={handle.direction}
+              aria-hidden="true"
+              className={`absolute z-30 touch-none select-none ${handle.className}`}
+              onPointerDownCapture={(event) =>
+                onStartResizing(windowId, handle.direction, event)
+              }
+            />
+          ))
+        : null}
+
       <div
         className={`relative flex h-full flex-col overflow-hidden border shadow-[0_24px_90px_rgba(0,0,0,0.5)] ${
           activeWindowId === windowId
@@ -120,15 +133,6 @@ export function WindowFrame({
             : "border-line bg-window/95"
         } ${windowState.maximized ? "rounded-none" : "rounded-2xl"}`}
       >
-        {!isFramedToViewport
-          ? resizeHandles.map((handle) => (
-              <div
-                key={handle.direction}
-                className={`absolute z-20 touch-none ${handle.className}`}
-                onPointerDown={(event) => onStartResizing(appId, handle.direction, event)}
-              />
-            ))
-          : null}
         <div
           className="flex h-10 shrink-0 select-none items-center justify-between border-b border-line bg-window-chrome/95 px-3"
           onDoubleClick={() => onToggleMaximize(windowId)}
